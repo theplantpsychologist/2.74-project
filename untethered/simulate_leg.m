@@ -12,6 +12,12 @@ function simulate_leg()
     Ir = 0.0035 / N^2;
     g = 9.81;    
 
+    q1_min = deg2rad(-40);
+    q1_max = deg2rad(40);
+    q2_min = deg2rad(20);
+    q2_max = deg2rad(160);
+    qlims = [q1_min, q1_max, q2_min, q2_max];
+
     restitution_coeff = 0;
     friction_coeff = 10;
     ground_height = -0.13;
@@ -25,19 +31,24 @@ function simulate_leg()
     num_step = floor(tf / dt);
     tspan = linspace(0, tf, num_step); 
     % Initial state: [x; y; th1; th2; dx; dy; dth1; dth2]
-    z0 = [0; l_OA + l_AC+l_DE; -pi / 4; pi / 2; 0; 0; 0; 0];
+    z0 = [0; l_OA+l_AC+l_DE; -pi / 4; pi / 2; 0; 0; 0; 0];
     z_out = zeros(8, num_step);
     z_out(:,1) = z0;
 
     for i = 1:num_step - 1
         dz = dynamics(tspan(i), z_out(:,i), p);
         % Update state with dynamics
-
-        z_out(:,i+1) = z_out(:,i) + dz * dt;
+        z_temp = z_out(:,i) + dz * dt;
+    
         % Check for ground contact and update velocities if necessary
-        
-        z_out(5:8, i+1) = discrete_impact_contact(z_out(:,i+1), p, ...
+        z_temp(5:8) = discrete_impact_contact(z_temp, p, ...
             restitution_coeff, friction_coeff, ground_height);
+    
+        % Check for joint limit constraint and update velocities if necessary
+        z_temp(5:8) = joint_limit_constraint(z_temp, p, qlims);
+    
+        % Update the state
+        z_out(:,i+1) = z_temp;
     end
 
     %% Compute Energy
@@ -139,6 +150,60 @@ function qdot = discrete_impact_contact(z,p, rest_coeff, fric_coeff, yC)
     end
 
 end
+function qdot = joint_limit_constraint(z, p, limits)
+    % Extract positions and velocities and limits
+    q = z(1:4);      % Positions: [x; y; th1; th2]
+    dq = z(5:8);     % Velocities: [dx; dy; dth1; dth2]
+    qdot = dq;       % Initialize qdot with current velocities
+    q1min = limits(1);
+    q1max = limits(2);
+    q2min = limits(3);
+    q2max = limits(4);
+
+    q1 = q(3);       % Joint angle th1
+    q2 = q(4);       % Joint angle th2
+    dth1 = dq(3);    % Joint velocity dth1
+    dth2 = dq(4);    % Joint velocity dth2
+
+    if ((q1 <= q1min) && (dth1 < 0)) || ((q1 >= q1max) && (dth1 > 0))% Joint limit violated and moving further into violation
+        % Compute the Jacobian of the constraint
+        % For joint limit on q1, the constraint is c(q) = q1 - q1_min >= 0
+        % The gradient of c(q) with respect to q is:
+        Jc = [0, 0, 1, 0]; % Only q1 has a non-zero partial derivative
+
+        % Mass matrix
+        A = A_leg(z, p);
+        inv_mass = inv(A);
+
+        % Compute the impulse needed to stop further violation
+        % Constraint impulse: Lambda = - (1 + e) * (Jc * dq) / (Jc * inv_mass * Jc')
+        % For a perfectly inelastic collision (e = 0)
+        e = 0; % Restitution coefficient for joint limit
+        Lambda = - (1 + e) * (Jc * dq) / (Jc * inv_mass * Jc');
+        % -(1 + e) * (Jc * dq) is equivalent to -(gamma * dCy + Jc * dq)
+        % because ddtCy = dCy/q*dq = Jc*dq
+        
+        % Adjust velocities
+        qdot = qdot + inv_mass * (Jc' * Lambda);
+    end
+
+    if ((q2 <= q2min) && (dth2 < 0)) || ((q2 >= q2max) && (dth2 > 0))
+        % c(q) = q2 - q2_max <= 0
+        Jc = [0, 0, 0, 1];
+
+        % Mass matrix
+        A = A_leg(z, p);
+        inv_mass = inv(A);
+
+        e = 0; % Restitution coefficient for joint limit
+        Lambda = - (1 + e) * (Jc * dq) / (Jc * inv_mass * Jc');
+
+        % Adjust velocities
+        qdot = qdot + inv_mass * (Jc' * Lambda);
+    end
+    
+end
+
 
 function animateSol(tspan, x, p)
     % Prepare plot handles
