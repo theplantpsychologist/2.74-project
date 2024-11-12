@@ -125,17 +125,13 @@ function qdot = discrete_impact_contact(z,p, rest_coeff, fric_coeff, yC)
 
     if (Cy <= 0)&&(dCy<=0) %constraint violated
         J  = jacobian_foot(z,p);
-
+        disp(J)
         inv_mass = inv(A_leg(z,p));
-        Jdot = jacobian_dot_foot(z,p);
-        corr = Corr_leg(z,p); %corriolis effects
-        grav = Grav_leg(z,p); %gravitational effects
         eff_mass = inv(J*inv_mass*J');
         ydir = [0;1];
         xdir = [1;0];
         osim_cy = ydir'*eff_mass*ydir; 
         osim_cx = xdir'*eff_mass*xdir;
-        
         Jcy = J(2,:);
         Jcx = J(1,:);
         Fcy = osim_cy*(-rest_coeff*dCy - Jcy*qdot); % vertical ground reaction
