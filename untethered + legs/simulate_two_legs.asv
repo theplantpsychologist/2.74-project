@@ -12,10 +12,10 @@ function simulate_twolegs()
     Ir = 0.0035/N^2;
     g = 9.81;    
 
-    q1_min = deg2rad(-40);
-    q1_max = deg2rad(40);
-    q2_min = deg2rad(20);
-    q2_max = deg2rad(160);
+    q1_min = deg2rad(-50);
+    q1_max = deg2rad(50);
+    q2_min = deg2rad(10);
+    q2_max = deg2rad(170);
     qlims = [q1_min, q1_max, q2_min, q2_max];
 
     restitution_coeff = 0.;
@@ -51,14 +51,14 @@ function simulate_twolegs()
             restitution_coeff, friction_coeff);
     
         % Check for joint limit constraint and update velocities if necessary
-        % z_temp(7:12) = joint_limit_constraint(z_temp, p, qlims);
+        z_temp(7:12) = joint_limit_constraint(z_temp, p, qlims);
     
         % Update the state
         z_out(:,i+1) = z_temp;
     end
     
     %% Compute Energy
-    E = energy_twoleg(z_out,p);
+    E = energy_twolegs(z_out,p);
     figure(1); clf
     plot(tspan,E);xlabel('Time (s)'); ylabel('Energy (J)');
     
@@ -221,10 +221,9 @@ function qdot = discrete_impact_contact(z,p, rest_coeff, fric_coeff)
     J1  = jacobian_foot1(z,p); % 2x6 matrix
     J2  = jacobian_foot2(z,p); % 2x6 matrix
     A  = A_twolegs(z,p); %6x6 matrix
-    % A1 = A(1:2,1:2);          
-    % A2 = A(3:4, 3:4);          
-    osim1 = inv (J1 * inv(A) * J1');
-    osim2 = inv (J2 * inv(A) * J2');
+    inv_A = inv(A);
+    osim1 = inv (J1 * inv_A * J1');
+    osim2 = inv (J2 * inv_A * J2');
     xhat = [1,0];
     yhat = [0,1];
     mass_eff_x1 = 1 / ( xhat * inv(osim1) * xhat'); %m_eff_r = 1/(rhat*inv(osim)*rhat.')
@@ -271,57 +270,57 @@ function qdot = discrete_impact_contact(z,p, rest_coeff, fric_coeff)
 end
 
 function qdot = joint_limit_constraint(z, p, limits)
-    % % Extract positions and velocities and limits
-    % q = z(1:6);      % Positions: [x; y; th1; th2; th3; th4]
-    % dq = z(7:12);     % Velocities: [dx; dy; dth1; dth2; dth3; dth4]
-    % qdot = dq;       % Initialize qdot with current velocities
-    % q1min = limits(1);
-    % q1max = limits(2);
-    % q2min = limits(3);
-    % q2max = limits(4);
-    % 
-    % q1 = q(3);       % Joint angle th1
-    % q2 = q(4);       % Joint angle th2
-    % q3 = q(5);
-    % q4 = q(6);
-    % dth1 = dq(3);    % Joint velocity dth1
-    % dth2 = dq(4);    % Joint velocity dth2
-    % dth3 = dq(5);
-    % dth4 = dq(6);
-    % 
-    % if ((q1 <= q1min) && (dth1 < 0)) || ((q1 >= q1max) && (dth1 > 0))% Joint limit violated and moving further into violation
-    %     Jc = [0, 0, 1, 0, 0, 0]; % Compute the Jacobian of the constraint c(q) = q1 - q1_min >= 0
-    %     A = A_twolegs(z, p);% Mass matrix
-    %     inv_mass = inv(A);
-    %     e = 0; % Restitution coefficient for joint limit
-    %     Lambda = - (1 + e) * (Jc * dq) / (Jc * inv_mass * Jc'); % -(1 + e) * (Jc * dq) is equivalent to -(gamma * dCy + Jc * dq) because ddtCy = dCy/q*dq = Jc*dq
-    %     qdot = qdot + inv_mass * (Jc' * Lambda);
-    % end
-    % 
-    % if ((q2 <= q2min) && (dth2 < 0)) || ((q2 >= q2max) && (dth2 > 0))
-    %     Jc = [0, 0, 0, 1, 0, 0];% c(q) = q2 - q2_max <= 0
-    %     A = A_twolegs(z, p); % Mass matrix
-    %     inv_mass = inv(A);
-    %     e = 0; % Restitution coefficient for joint limit
-    %     Lambda = - (1 + e) * (Jc * dq) / (Jc * inv_mass * Jc');% impulse force
-    %     qdot = qdot + inv_mass * (Jc' * Lambda); % Adjust velocities
-    % end
-    % if ((q3 <= q1min) && (dth3 < 0)) || ((q3 >= q1max) && (dth3 > 0))
-    %     Jc = [0, 0, 0, 0, 1, 0];% c(q) = q2 - q2_max <= 0
-    %     A = A_twolegs(z, p); % Mass matrix
-    %     inv_mass = inv(A);
-    %     e = 0; % Restitution coefficient for joint limit
-    %     Lambda = - (1 + e) * (Jc * dq) / (Jc * inv_mass * Jc');% impulse force
-    %     qdot = qdot + inv_mass * (Jc' * Lambda); % Adjust velocities
-    % end
-    % if ((q4 <= q2min) && (dth4 < 0)) || ((q4 >= q2max) && (dth4 > 0))
-    %     Jc = [0, 0, 0, 0, 0, 1];% c(q) = q2 - q2_max <= 0
-    %     A = A_twolegs(z, p); % Mass matrix
-    %     inv_mass = inv(A);
-    %     e = 0; % Restitution coefficient for joint limit
-    %     Lambda = - (1 + e) * (Jc * dq) / (Jc * inv_mass * Jc');% impulse force
-    %     qdot = qdot + inv_mass * (Jc' * Lambda); % Adjust velocities
-    % end
+    % Extract positions and velocities and limits
+    q = z(1:6);      % Positions: [x; y; th1; th2; th3; th4]
+    dq = z(7:12);     % Velocities: [dx; dy; dth1; dth2; dth3; dth4]
+    qdot = dq;       % Initialize qdot with current velocities
+    q1min = limits(1);
+    q1max = limits(2);
+    q2min = limits(3);
+    q2max = limits(4);
+
+    q1 = q(3);       % Joint angle th1
+    q2 = q(4);       % Joint angle th2
+    q3 = q(5);
+    q4 = q(6);
+    dth1 = dq(3);    % Joint velocity dth1
+    dth2 = dq(4);    % Joint velocity dth2
+    dth3 = dq(5);
+    dth4 = dq(6);
+
+    if ((q1 <= q1min) && (dth1 < 0)) || ((q1 >= q1max) && (dth1 > 0))% Joint limit violated and moving further into violation
+        Jc = [0, 0, 1, 0, 0, 0]; % Compute the Jacobian of the constraint c(q) = q1 - q1_min >= 0
+        A = A_twolegs(z, p);% Mass matrix
+        inv_mass = inv(A);
+        e = 0; % Restitution coefficient for joint limit
+        Lambda = - (1 + e) * (Jc * dq) / (Jc * inv_mass * Jc'); % -(1 + e) * (Jc * dq) is equivalent to -(gamma * dCy + Jc * dq) because ddtCy = dCy/q*dq = Jc*dq
+        qdot = qdot + inv_mass * (Jc' * Lambda);
+    end
+
+    if ((q2 <= q2min) && (dth2 < 0)) || ((q2 >= q2max) && (dth2 > 0))
+        Jc = [0, 0, 0, 1, 0, 0];% c(q) = q2 - q2_max <= 0
+        A = A_twolegs(z, p); % Mass matrix
+        inv_mass = inv(A);
+        e = 0; % Restitution coefficient for joint limit
+        Lambda = - (1 + e) * (Jc * dq) / (Jc * inv_mass * Jc');% impulse force
+        qdot = qdot + inv_mass * (Jc' * Lambda); % Adjust velocities
+    end
+    if ((q3 <= q1min) && (dth3 < 0)) || ((q3 >= q1max) && (dth3 > 0))
+        Jc = [0, 0, 0, 0, 1, 0];% c(q) = q2 - q2_max <= 0
+        A = A_twolegs(z, p); % Mass matrix
+        inv_mass = inv(A);
+        e = 0; % Restitution coefficient for joint limit
+        Lambda = - (1 + e) * (Jc * dq) / (Jc * inv_mass * Jc');% impulse force
+        qdot = qdot + inv_mass * (Jc' * Lambda); % Adjust velocities
+    end
+    if ((q4 <= q2min) && (dth4 < 0)) || ((q4 >= q2max) && (dth4 > 0))
+        Jc = [0, 0, 0, 0, 0, 1];% c(q) = q2 - q2_max <= 0
+        A = A_twolegs(z, p); % Mass matrix
+        inv_mass = inv(A);
+        e = 0; % Restitution coefficient for joint limit
+        Lambda = - (1 + e) * (Jc * dq) / (Jc * inv_mass * Jc');% impulse force
+        qdot = qdot + inv_mass * (Jc' * Lambda); % Adjust velocities
+    end
     
 end
 
@@ -369,8 +368,8 @@ function animateSol(tspan, x,p)
 
         set(h_title,'String',  sprintf('t=%.2f',t) ); % update title
         
-        set(h_OB,'XData',[rO rB(1)]);
-        set(h_OB,'YData',[rO rB(2)]);
+        set(h_OB,'XData',[rO(1) rB(1)]);
+        set(h_OB,'YData',[rO(2) rB(2)]);
         
         set(h_AC,'XData',[rA(1) rC(1)]);
         set(h_AC,'YData',[rA(2) rC(2)]);
@@ -381,8 +380,8 @@ function animateSol(tspan, x,p)
         set(h_CE,'XData',[rC(1) rE(1)]);
         set(h_CE,'YData',[rC(2) rE(2)]);
 
-        set(h_OB2,'XData',[rO rB2(1)]);
-        set(h_OB2,'YData',[0 rB2(2)]);
+        set(h_OB2,'XData',[rO(1) rB2(1)]);
+        set(h_OB2,'YData',[rO(2) rB2(2)]);
         
         set(h_AC2,'XData',[rA2(1) rC2(1)]);
         set(h_AC2,'YData',[rA2(2) rC2(2)]);

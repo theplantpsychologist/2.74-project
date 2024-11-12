@@ -21,6 +21,12 @@ function simulate_twolegs()
     restitution_coeff = 0.;
     friction_coeff = 0.3;
     ground_height = -0.13;
+
+    step_th = deg2rad(30);
+    step_w = 0.1; % ~10cm step depth
+    step_h = tan(step_th)*step_w; %find step height. tan(stair_th) = stair_h/stair_w
+    offset_x = -step_w/3;
+    stair_height = @(x) floor((x+offset_x)./step_w).*step_h + ground_height;
     %% Parameter vector
     p   = [m1 m2 m3 m4 I1 I2 I3 I4 Ir N l_O_m1 l_B_m2 l_A_m3 l_C_m4 l_OA l_OB l_AC l_DE g]';
        
@@ -36,7 +42,7 @@ function simulate_twolegs()
     num_step = floor(tf/dt);
     tspan = linspace(0, tf, num_step); 
     % Initial state: [x; y; th1; th2; th3; th4; dx; dy; dth1; dth2; dth3; dth4]
-    z0 = [0; l_OA+l_AC+l_DE; -pi/4; pi/2; pi/4; pi/2; 0; 0; 0; 0; 0; 0];
+    z0 = [0; l_OA+l_AC+l_DE; -pi/3; pi/2; pi/3; pi/2; 0; 0; 0; 0; 0; 0];
     z_out = zeros(12,num_step);
     z_out(:,1) = z0;
     
@@ -47,8 +53,7 @@ function simulate_twolegs()
         z_temp = z_out(:,i) + dz * dt;
     
         % Check for ground contact and update velocities if necessary
-        z_temp(7:12) = discrete_impact_contact(z_temp, p, ...
-            restitution_coeff, friction_coeff);
+        z_temp(7:12) = discrete_impact_contact(z_temp, p,restitution_coeff,friction_coeff,stair_height);
     
         % Check for joint limit constraint and update velocities if necessary
         z_temp(7:12) = joint_limit_constraint(z_temp, p, qlims);
@@ -119,7 +124,10 @@ function simulate_twolegs()
     %       p_traj.y_0 + p_traj.r * sin(TH),'k--'); 
     
     % Ground Q2.3
-    plot([-.5 .5],[ground_height ground_height],'k'); 
+    steps = 5;
+    stair_X = linspace(-step_w,step_w*steps,1000);
+    stair_Y = stair_height(stair_X);
+    plot(stair_X,stair_Y,'k');
     
     animateSol(tspan, z_out,p);
 end
@@ -209,9 +217,7 @@ function dz = dynamics(t,z,p)
     dz(7:12) = qdd;
 end
 
-function qdot = discrete_impact_contact(z,p, rest_coeff, fric_coeff)
-    
-    ground_height = -0.13;
+function qdot = discrete_impact_contact(z,p, rest_coeff, fric_coeff, yC_fun)
 
     % Actual position and velocity 
     rE1 = position_foot1(z,p);
@@ -221,10 +227,9 @@ function qdot = discrete_impact_contact(z,p, rest_coeff, fric_coeff)
     J1  = jacobian_foot1(z,p); % 2x6 matrix
     J2  = jacobian_foot2(z,p); % 2x6 matrix
     A  = A_twolegs(z,p); %6x6 matrix
-    % A1 = A(1:2,1:2);          
-    % A2 = A(3:4, 3:4);          
-    osim1 = inv (J1 * inv(A) * J1');
-    osim2 = inv (J2 * inv(A) * J2');
+    inv_A = inv(A);
+    osim1 = inv (J1 * inv_A * J1');
+    osim2 = inv (J2 * inv_A * J2');
     xhat = [1,0];
     yhat = [0,1];
     mass_eff_x1 = 1 / ( xhat * inv(osim1) * xhat'); %m_eff_r = 1/(rhat*inv(osim)*rhat.')
@@ -234,10 +239,8 @@ function qdot = discrete_impact_contact(z,p, rest_coeff, fric_coeff)
 
     x1 = rE1(1);
     x2 = rE2(1);
-    % yC1 = yC_fun(x1);
-    % yC2 = yC_fun(x2);
-    yC1 = ground_height;
-    yC2 = ground_height;
+    yC1 = yC_fun(x1);
+    yC2 = yC_fun(x2);
 
     C_y1 = rE1(2) - yC1;
     Cdot_y1 = vE1(2);
@@ -254,7 +257,7 @@ function qdot = discrete_impact_contact(z,p, rest_coeff, fric_coeff)
             F_impulse_x1 = sign(F_impulse_x1) * fric_coeff * F_impulse_y1;
         end
         %update both for x and y impulses
-        qdot = qdot + (inv(A) * J1(2,:).' * F_impulse_y1) + (inv(A) * J1(1,:).' * F_impulse_x1); %update qdot1 & qdot2
+        qdot = qdot + (inv_A * J1(2,:).' * F_impulse_y1) + (inv_A * J1(1,:).' * F_impulse_x1); %update qdot1 & qdot2
     end
     % Leg 2
     if (C_y2 <= 0) && (Cdot_y2 <= 0) 
@@ -264,7 +267,7 @@ function qdot = discrete_impact_contact(z,p, rest_coeff, fric_coeff)
             F_impulse_x2 = sign(F_impulse_x2) * fric_coeff * F_impulse_y2;
         end
         %update both for x and y impulses
-        qdot = qdot + (inv(A) * J2(2,:).' * F_impulse_y2) + (inv(A) * J2(1,:).' * F_impulse_x2); %update qdot3 & qdot4
+        qdot = qdot + (inv_A * J2(2,:).' * F_impulse_y2) + (inv_A * J2(1,:).' * F_impulse_x2); %update qdot3 & qdot4
     end
     qdot = qdot;
 
@@ -288,11 +291,13 @@ function qdot = joint_limit_constraint(z, p, limits)
     dth2 = dq(4);    % Joint velocity dth2
     dth3 = dq(5);
     dth4 = dq(6);
+    
+    A = A_twolegs(z, p);% Mass matrix
+    inv_mass = inv(A);
 
     if ((q1 <= q1min) && (dth1 < 0)) || ((q1 >= q1max) && (dth1 > 0))% Joint limit violated and moving further into violation
         Jc = [0, 0, 1, 0, 0, 0]; % Compute the Jacobian of the constraint c(q) = q1 - q1_min >= 0
-        A = A_twolegs(z, p);% Mass matrix
-        inv_mass = inv(A);
+        
         e = 0; % Restitution coefficient for joint limit
         Lambda = - (1 + e) * (Jc * dq) / (Jc * inv_mass * Jc'); % -(1 + e) * (Jc * dq) is equivalent to -(gamma * dCy + Jc * dq) because ddtCy = dCy/q*dq = Jc*dq
         qdot = qdot + inv_mass * (Jc' * Lambda);
@@ -301,7 +306,6 @@ function qdot = joint_limit_constraint(z, p, limits)
     if ((q2 <= q2min) && (dth2 < 0)) || ((q2 >= q2max) && (dth2 > 0))
         Jc = [0, 0, 0, 1, 0, 0];% c(q) = q2 - q2_max <= 0
         A = A_twolegs(z, p); % Mass matrix
-        inv_mass = inv(A);
         e = 0; % Restitution coefficient for joint limit
         Lambda = - (1 + e) * (Jc * dq) / (Jc * inv_mass * Jc');% impulse force
         qdot = qdot + inv_mass * (Jc' * Lambda); % Adjust velocities
@@ -309,7 +313,6 @@ function qdot = joint_limit_constraint(z, p, limits)
     if ((q3 <= q1min) && (dth3 < 0)) || ((q3 >= q1max) && (dth3 > 0))
         Jc = [0, 0, 0, 0, 1, 0];% c(q) = q2 - q2_max <= 0
         A = A_twolegs(z, p); % Mass matrix
-        inv_mass = inv(A);
         e = 0; % Restitution coefficient for joint limit
         Lambda = - (1 + e) * (Jc * dq) / (Jc * inv_mass * Jc');% impulse force
         qdot = qdot + inv_mass * (Jc' * Lambda); % Adjust velocities
@@ -317,7 +320,6 @@ function qdot = joint_limit_constraint(z, p, limits)
     if ((q4 <= q2min) && (dth4 < 0)) || ((q4 >= q2max) && (dth4 > 0))
         Jc = [0, 0, 0, 0, 0, 1];% c(q) = q2 - q2_max <= 0
         A = A_twolegs(z, p); % Mass matrix
-        inv_mass = inv(A);
         e = 0; % Restitution coefficient for joint limit
         Lambda = - (1 + e) * (Jc * dq) / (Jc * inv_mass * Jc');% impulse force
         qdot = qdot + inv_mass * (Jc' * Lambda); % Adjust velocities
