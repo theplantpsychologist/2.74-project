@@ -16,7 +16,7 @@ end
 import casadi.*
 
 % Generate dynamics + load functions for leg
-buildLegDynamics()
+buildTwoLegDynamics()
 A_fn = casadi.Function.load('codegen/A_fn.casadi');
 b_fn = casadi.Function.load('codegen/b_fn.casadi');
 energy_fn = casadi.Function.load('codegen/energy_fn.casadi');
@@ -40,7 +40,16 @@ g = 9.81;
 
 %% Parameter vector
 params   = [m1 m2 m3 m4 I1 I2 I3 I4 Ir N l_O_m1 l_B_m2 l_A_m3 l_C_m4 l_OA l_OB l_AC l_DE g]';
-q_max_val = [pi; 3*pi/4];
-q_min_val = [-pi; pi/6];
+
+q1_min = deg2rad(-50);
+q1_max = deg2rad(50);
+q2_min = deg2rad(10);
+q2_max = deg2rad(170);
+qlims = [q1_min, q1_max, q2_min, q2_max];
+q_max_val = [q1_max; q2_max; q1_max; q2_max]; %same limits for leg 1 and 2
+q_min_val = [q1_min; q2_min; q1_min; q2_min];
+
 tau_max_val = 3;
 tau_min_val = -3;
+
+stair_len = 0.300; % start with 30cm

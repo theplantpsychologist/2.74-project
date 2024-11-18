@@ -1,6 +1,23 @@
-%% 2.740: Homework 5
-% Setup
-setupHW5();
+%% 2.740: TRAJECTORY OPTIMIZER FOR STAIR ROBOT
+% Setup code
+setup();
+
+%Major Changes from hw5 and remaining steps:
+% q is 6x1 instead of 2x1 for x;y;q1;q2;q3;q4
+% q constraints are 4x1, only applied to q1;q2;q3;q4
+% z0 is 12x1, determine start state and end state
+% u is either not q_dimxN or has x, y constrained to 0
+
+%Things to add
+%   CONTACT SCHEDULE: [x, o, o, o, o, x, x, x, x, x, o, o, o, x
+%                      x, x, x, x, x, x, o, o, o, x, x, x, x, x] (double contact time, start and end with both feet on ground)
+%   TASK DESIGN: zn = zdes; cost= tau^2 + sum(zi-zdes)^2; (z referes to only base coordinates)
+%   CONTACT CONSTRAINTS:
+% 1) Foot_pos(qt) == cartesian foot pos; ()
+% 2) Ft.cs >= 0; (Ft = [Fx_t; Fy_t], cs is constact schedule. Feet on the ground should have upward or no applied force) 
+% 3) Fx_t.cs <= mu*Fy_t^2; (left and right, friction cone constraint)
+% 4) Mddq + C + G = J'*F + tau (EOM; where J'*F are external reaction forces)
+% 5) cart_foot.contact_schedule.yhat = stair_slope height; ()
 
 %% Trajectory optimization with CasADi
 % CasADi is a symbolic framework for algorithmic differentiation and numerical optimization.
@@ -8,10 +25,6 @@ setupHW5();
  
 % The syntax is similar to MATLAB's symbolic toolbox you've been using for past homeworks, 
 % but it's much more powerful and expressive for us to formulate optimizations.
-
-% For this homework, we're going to optimize the trajectories of the leg you've been using for lab.
-% You only need to work in this file, but look at setupHW5.m to familiarize yourself with how 
-% we are building the dynamics of the leg, setting parameters, and adding libraries.
 
 % If needed, you have access to the following functions for the leg
 % A_fn(z, param)
@@ -23,7 +36,7 @@ setupHW5();
 % keypoints_fn(z, param)
 
 %% [DECISION VARIABLES AND PARAMETERS]:
-q_dim = 2;                  % Number of generalized coordinates
+q_dim = 6;                  % Number of generalized coordinates
 N = 20;                     % Size of optimization horizon
 dt = 0.025;                  % Discretization time step
 t_span = 0:dt:(N - 1)*dt;   % Time span
@@ -35,8 +48,8 @@ opti = casadi.Opti();
 % dv_1 = opti.variable(3, 2);
 % Add in your decision variables for q, q_dot, and u here:
 q = opti.variable(q_dim,N);% 
-q_dot = opti.variable(q_dim,N);% [YOUR CODE HERE]
-u = opti.variable(q_dim,N-1);% [YOUR CODE HERE]
+q_dot = opti.variable(q_dim,N);%
+u = opti.variable(q_dim-2,N-1);% base x and y coords are not acutated
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% SECTION 2.1.3 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Here are the inertial + kinematic paramters for the leg.
@@ -52,7 +65,7 @@ tau_max = opti.parameter(1,1);
 tau_min = opti.parameter(1,1);
 
 %% [CONSTRAINTS]:
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% SECTION 2.2.1 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% INITIAL STATE %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % We can constrain our optimization by like this:
 % opti.subject_to(dv_1(:, 1) == [1, 2, 3]'); --> This constrains the first column of dv_1 to be [1, 2, 3]'.
 % opti.subject_to(dv_1(:, 1) <= [1, 2, 3]'); --> This constrains the first column of dv_1 to be less than or equal to [1, 2, 3]'.
@@ -72,13 +85,13 @@ for k = 1:N - 1
     opti.subject_to(q_dot(:, k + 1) == q_dot(:, k) + qdd_k * dt);
     opti.subject_to(q(:, k + 1) == q(:, k) + q_dot(:, k + 1) * dt);
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% SECTION 2.2.2 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% JOINT CONSTRAINTS %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     % Add in min/max state constraints here:
-    opti.subject_to(q(:,k) <= q_max);
-    opti.subject_to(q(:,k) >= q_min);
+    opti.subject_to(q(3:6,k) <= q_max); %joint constraints only
+    opti.subject_to(q(3:6,k) >= q_min);
 
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% SECTION 2.2.3 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% TORQUE CONSTRAINTS %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     % Add in min/max input constraints here:
     opti.subject_to(u(:,k) <= tau_max);
     opti.subject_to(u(:,k) >= tau_min);
@@ -99,21 +112,21 @@ for l = 1:length(u)
     cost_torque = cost_torque + sum(u(:,l)'*u(:,l)); % [YOUR CODE HERE]
 end
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% SECTION 2.3.2 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% END JOINT STATE %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Implement the desired joint state at the end of the trajectory here:
-z_des = [pi/4; pi/4; 0; 0];
+z_des = [stair_length; 0; pi/3; -pi/4; pi/3; 0; 0; 0; 0; 0; 0]; % same as start state but different x
 z_end = [q(:, end); q_dot(:, end)];
 z_err = (z_end-z_des);
-cost_joint = sum(z_err'*z_err); % [YOUR CODE HERE]
+cost_joint = sum(z_err'*z_err); 
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% SECTION 2.3.3 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% END CARTESIAN STATE %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Implement the desired end effector state at the end of the trajectory here:
 cart_des = [0.05, -0.175, 5, 5]';
 cart_end = [pos_end_effector([q(:,end);q_dot(:,end)], p);vel_end_effector([q(:,end);q_dot(:,end)], p)];
 cart_err = (cart_end - cart_des);
 cost_cart = sum(cart_err'*cart_err);
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% SECTION 2.3.4 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% WEIGHT PARAMETERS %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Fill in weights for each cost here, as desired:
 Q_torque = 5;
 Q_cart = 1;
@@ -125,9 +138,10 @@ opti.minimize(cost);
 opti.solver('ipopt');
 
 %% [SET PARAMETER VALUES]:
-z_0 = [-pi/4; pi/2; 0; 0];
-opti.set_value(q_0, z_0(1:2));
-opti.set_value(q_dot_0, z_0(3:4));
+%START STATE
+z0 = [0; l_DE; -pi/4; pi/3; -pi/4; pi/3; 0; 0; 0; 0; 0; 0]; % place xy above ground constraint and find good starting state
+opti.set_value(q_0, z_0(1:6));
+opti.set_value(q_dot_0, z_0(7:12));
 opti.set_value(p, params);
 opti.set_value(q_max, q_max_val);
 opti.set_value(q_min, q_min_val);
@@ -150,7 +164,7 @@ N_sim = length(t_sim);
 % Interpolation schemes: {'nearest', 'linear', 'spline', 'pchip', 'cubic'}
 u_out = interpolateOptimizedControl(t_span, u_soln, t_sim, 'cubic');
 u_out(:, end - floor(dt/dt_sim):end) = 0;
-z_sim = zeros(4, N_sim);
+z_sim = zeros(q_dim*2, N_sim);
 z_sim(:,1) = z_0;
 for i = 1:N_sim-1
     A = full(A_fn(z_sim(:, i), params));
