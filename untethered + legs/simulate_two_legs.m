@@ -20,7 +20,7 @@ function simulate_twolegs()
 
     restitution_coeff = 0.;
     friction_coeff = 0.3;
-    ground_height = -0.13;
+    ground_height = 0;
 
     step_th = deg2rad(30);
     step_w = 0.1; % ~10cm step depth
@@ -42,7 +42,7 @@ function simulate_twolegs()
     num_step = floor(tf/dt);
     tspan = linspace(0, tf, num_step); 
     % Initial state: [x; y; th1; th2; th3; th4; dx; dy; dth1; dth2; dth3; dth4]
-    z0 = [0; l_DE; -pi/4; pi/3; -pi/4; pi/3; 0; 0; 0; 0; 0; 0];
+    z0 = [0.0692; 0.1868; -pi/4; pi/3; -pi/4; pi/3; 0; 0; 0; 0; 0; 0];
     z_out = zeros(12,num_step);
     z_out(:,1) = z0;
     

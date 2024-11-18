@@ -11,7 +11,7 @@ setup();
 %Things to add
 %   CONTACT SCHEDULE: [x, o, o, o, o, x, x, x, x, x, o, o, o, x
 %                      x, x, x, x, x, x, o, o, o, x, x, x, x, x] (double contact time, start and end with both feet on ground)
-%   TASK DESIGN: zn = zdes; cost= tau^2 + sum(zi-zdes)^2; (z referes to only base coordinates)
+%   TASK DESIGN: zn = zdes; cost= Q1*tau^2 + Q2*sum(zi-zdes)^2; (z referes to only base coordinates)
 %   CONTACT CONSTRAINTS:
 % 1) Foot_pos(qt) == cartesian foot pos; ()
 % 2) Ft.cs >= 0; (Ft = [Fx_t; Fy_t], cs is constact schedule. Feet on the ground should have upward or no applied force) 
@@ -109,7 +109,7 @@ end
 % Implement torque minimization cost here:
 cost_torque = 0;
 for l = 1:length(u)
-    cost_torque = cost_torque + sum(u(:,l)'*u(:,l)); % [YOUR CODE HERE]
+    cost_torque = cost_torque + sum(u(:,l)'*u(:,l)); 
 end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% END JOINT STATE %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

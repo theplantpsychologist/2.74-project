@@ -11,7 +11,7 @@ setup();
 %Things to add
 %   CONTACT SCHEDULE: [x, o, o, o, o, x, x, x, x, x, o, o, o, x
 %                      x, x, x, x, x, x, o, o, o, x, x, x, x, x] (double contact time, start and end with both feet on ground)
-%   TASK DESIGN: zn = zdes; cost= tau^2 + sum(zi-zdes)^2; (z referes to only base coordinates)
+%   TASK DESIGN: zn = zdes; cost= Q1*tau^2 + Q2*sum(zi-zdes)^2; (z referes to only base coordinates)
 %   CONTACT CONSTRAINTS:
 % 1) Foot_pos(qt) == cartesian foot pos; ()
 % 2) Ft.cs >= 0; (Ft = [Fx_t; Fy_t], cs is constact schedule. Feet on the ground should have upward or no applied force) 
@@ -109,7 +109,7 @@ end
 % Implement torque minimization cost here:
 cost_torque = 0;
 for l = 1:length(u)
-    cost_torque = cost_torque + sum(u(:,l)'*u(:,l)); % [YOUR CODE HERE]
+    cost_torque = cost_torque + sum(u(:,l)'*u(:,l)); % BE CAREFUL SIZE OF U
 end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% END JOINT STATE %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -130,8 +130,8 @@ cost_cart = sum(cart_err'*cart_err);
 % Fill in weights for each cost here, as desired:
 Q_torque = 5;
 Q_cart = 1;
-Q_joint = 3;
-cost = Q_torque*cost_torque + Q_cart*cost_cart + Q_joint*cost_joint;
+% Q_joint = 3;
+cost = Q_torque*cost_torque + Q_cart*cost_cart;
 opti.minimize(cost);
 
 %% [SOLVER]:
@@ -139,7 +139,7 @@ opti.solver('ipopt');
 
 %% [SET PARAMETER VALUES]:
 %START STATE
-z0 = [0; l_DE; -pi/4; pi/3; -pi/4; pi/3; 0; 0; 0; 0; 0; 0]; % place xy above ground constraint and find good starting state
+z0 = [0.0692; 0.1868; -pi/4; pi/3; -pi/4; pi/3; 0; 0; 0; 0; 0; 0]; % place xy such that legs are at 0,0
 opti.set_value(q_0, z_0(1:6));
 opti.set_value(q_dot_0, z_0(7:12));
 opti.set_value(p, params);
