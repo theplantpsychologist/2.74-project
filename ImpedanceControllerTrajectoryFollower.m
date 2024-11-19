@@ -9,29 +9,30 @@ const_point = [0; -0.15]; %[x;y] or [q1,q2] constant coordinate (x,q1,q2 coordin
 pts_foot = repmat(const_point,1,8);
 
 % Circle parameters
-radius = 0.07;             % Radius of the circle (e.g., 5 cm)
-x_center = 0;        % X-coordinate of the center
-y_center = -0.15;        % Y-coordinate of the center
-num_points = 8;            % Number of points to approximate the circle
-
-% Generate angles for circular trajectory
-angles = linspace(0, 2*pi, num_points + 1);  % 0 to 2π, with num_points divisions
-angles(end) = [];  % Remove the last point to avoid overlap at the start
-
-% Calculate circular trajectory points
-x_pts = x_center + radius * cos(angles);  % X-coordinates
-y_pts = y_center + radius * sin(angles);  % Y-coordinates
-
-% Combine into pts_foot matrix
-pts_foot_1 = [x_pts; y_pts];
-pts_foot_1 = [x_pts x_pts; y_pts y_pts];
-        
+radius = 0.08;             % Radius of the circle (e.g., 5 cm)
+x_center = 0.05;        % X-coordinate of the center
+y_center = -0.17;        % Y-coordinate of the center
+angular_velocity = 1;
+% num_points = 8;            % Number of points to approximate the circle
+% 
+% % Generate angles for circular trajectory
+% angles = linspace(0, 2*pi, num_points + 1);  % 0 to 2π, with num_points divisions
+% angles(end) = [];  % Remove the last point to avoid overlap at the start
+% 
+% % Calculate circular trajectory points
+% x_pts = x_center + radius * cos(angles);  % X-coordinates
+% y_pts = y_center + radius * sin(angles);  % Y-coordinates
+% 
+% % Combine into pts_foot matrix
+% pts_foot_1 = [x_pts; y_pts];
+% pts_foot_1 = [x_pts x_pts; y_pts y_pts];
+%         
 % Initial leg angles for encoder resets (negative of q1,q2 in lab handout due to direction motors are mounted)
 angle1_init = 0;
-angle2_init = -pi/2; 
+angle2_init = -pi/4; 
 
 % Total experiment time is buffer,trajectory,buffer
-traj_time         = 5;
+traj_time         = 12;
 pre_buffer_time   = 2; % this should be 0 for constant points, 2 for Bezier trajectories
 post_buffer_time  = 1;
 
@@ -47,12 +48,15 @@ gains.D_yy = 5;
 gains.D_xy = 0;
 
 % Maximum duty cycle commanded by controller (should always be <=1.0)
-duty_max   = 0.4;
-
+duty_max   = 0.6;
+% radius     =;
+% x_center   =;
+% y_center   =;
+% angular_velocity =;
 %% Run Experiment
-[output_data] = RunTrajectoryExperiment(angle1_init, angle2_init, pts_foot_1,...
+[output_data] = RunTrajectoryExperiment(angle1_init, angle2_init, ...
                                         traj_time, pre_buffer_time, post_buffer_time,...
-                                        gains, duty_max);
+                                        gains, duty_max, x_center, y_center, radius, angular_velocity);
 
 %% Extract data
 t = output_data(:,1);
