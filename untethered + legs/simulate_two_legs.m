@@ -25,16 +25,22 @@ function simulate_twolegs()
     step_th = deg2rad(30);
     step_w = 0.1; % ~10cm step depth
     step_h = tan(step_th)*step_w; %find step height. tan(stair_th) = stair_h/stair_w
-    offset_x = -step_w/3;
+    % offset_x = -step_w/3;
+    offset_x = 0;
     stair_height = @(x) floor((x+offset_x)./step_w).*step_h + ground_height;
+
     %% Parameter vector
     p   = [m1 m2 m3 m4 I1 I2 I3 I4 Ir N l_O_m1 l_B_m2 l_A_m3 l_C_m4 l_OA l_OB l_AC l_DE g]';
        
     % %% Simulation Parameters Set 2 -- Operational Space Control
     % p_traj.omega = 3; %rad/sec
-    % p_traj.x_0   = 0;
-    % p_traj.y_0   = -.125;
-    % p_traj.r     = 0.025;
+    L = (l_DE+l_OB);
+    p_traj.x_off   = 0;
+    p_traj.y_off   = -L;
+    p_traj.a     = 0.025;
+    p_traj.b     = 0.05;
+    p_traj.phi  = -step_th;
+
     
     %% Perform Dynamic simulation
     dt = 0.001;
@@ -119,10 +125,15 @@ function simulate_twolegs()
     hold on
   
     % % Target traj
-    % TH = 0:.1:2*pi;
+    TH = 0:.1:2*pi;
     % plot( p_traj.x_0 + p_traj.r * cos(TH), ...
     %       p_traj.y_0 + p_traj.r * sin(TH),'k--'); 
-    
+    x_center = z0(1) + p_traj.x_off;
+    y_center = z0(2) + p_traj.y_off;
+    plot(x_center + p_traj.a * cos(TH) * cos(p_traj.phi) - p_traj.b * sin(TH) * sin(p_traj.phi), ...
+        y_center + p_traj.a * cos(TH) * sin(p_traj.phi) + p_traj.b * sin(TH) * cos(p_traj.phi), 'k--');
+
+
     % Ground Q2.3
     steps = 5;
     stair_X = linspace(-step_w,step_w*steps,1000);
@@ -345,7 +356,7 @@ function animateSol(tspan, x,p)
     h_title = title('t=0.0s');
     
     axis equal
-    axis([-.2 .2 -.3 .1]);
+    axis([-.2 .2 -.1 .3]);
 
     %Step through and update animation
     for i = 1:length(tspan)
