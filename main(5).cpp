@@ -53,6 +53,8 @@ float velocity1;
 float duty_cycle1;
 float angle1_init;
 
+const float pi = 3.1415;
+
 // Variables for q2
 float current2;
 float current_des2 = 0;
@@ -265,9 +267,9 @@ int main (void)
             D_xy                        = input_params[10];   // Foot damping N/(m/s)
             duty_max                    = input_params[11];   // Maximum duty factor
 
-            radius                      = input_params[12];             // Radius of the circle (e.g., 5 cm)
-            x_center                    = input_params[13];        // X-coordinate of the center
-            y_center                    = input_params[14];
+            x_center                    = input_params[12];        // X-coordinate of the center
+            y_center                    = input_params[13];
+            radius                      = input_params[14]; 
             angular_velocity            = input_params[15];
           
             // // Get foot trajectory points
@@ -388,10 +390,12 @@ int main (void)
                 // Get desired foot positions and velocities
 
                 float rDesFoot_1[2] , vDesFoot_1[2];
-                rDesFoot_1[0] = x_center + radius*cos(angular_velocity*t.read());
-                rDesFoot_1[1] = x_center + radius*sin(angular_velocity*t.read());
-                vDesFoot_1[0] = -radius*angular_velocity*sin(angular_velocity*t.read());
-                vDesFoot_1[1] = radius*angular_velocity*cos(angular_velocity*t.read());
+                rDesFoot_1[0] = x_center + radius*cos((angular_velocity*t.read()-cos(angular_velocity*t.read())));
+                rDesFoot_1[1] = y_center + radius*sin((angular_velocity*t.read()-cos(angular_velocity*t.read())));
+                vDesFoot_1[0] = radius*sin(cos(angular_velocity*t.read()) - angular_velocity*t.read())*(angular_velocity + angular_velocity*sin(angular_velocity*t.read()))
+;
+                vDesFoot_1[1] = radius*cos(cos(angular_velocity*t.read()) - angular_velocity*t.read())*(angular_velocity + angular_velocity*sin(angular_velocity*t.read()));
+
                 // rDesFoot_bez_1.evaluate(teff/traj_period,rDesFoot_1);
                 // rDesFoot_bez_1.evaluateDerivative(teff/traj_period,vDesFoot_1);
                 // vDesFoot_1[0]/=traj_period;
@@ -400,10 +404,11 @@ int main (void)
                 // vDesFoot_1[1]*=vMult;
 
                 float rDesFoot_2[2] , vDesFoot_2[2];
-                rDesFoot_1[0] = x_center + radius*cos(angular_velocity*(t.read()+3.14));
-                rDesFoot_1[1] = x_center + radius*sin(angular_velocity*(t.read()+3.14));
-                vDesFoot_1[0] = -radius*angular_velocity*sin(angular_velocity*(t.read()+3.14));
-                vDesFoot_1[1] = radius*angular_velocity*cos(angular_velocity*(t.read()+3/14));
+                rDesFoot_2[0] = x_center + radius*cos(angular_velocity*(t.read()+pi-cos(t.read()+pi)));
+                rDesFoot_2[1] = y_center + radius*sin(angular_velocity*(t.read()+pi-cos(t.read()+pi)));
+                vDesFoot_2[0] = angular_velocity*radius*sin(angular_velocity*(t + pi + cos(t)))*(sin(t) - 1);
+                vDesFoot_2[1] = -angular_velocity*radius*cos(angular_velocity*(t + pi + cos(t)))*(sin(t) - 1);
+
                 // rDesFoot_bez_2.evaluate(teff/traj_period,rDesFoot_2);
                 // rDesFoot_bez_2.evaluateDerivative(teff/traj_period,vDesFoot_2);
                 // vDesFoot_2[0]/=traj_period;
