@@ -1,4 +1,4 @@
-function output_data = RunTrajectoryExperiment( angle1_init, angle2_init, angle3_init, angle4_init, pts_foot, traj_time, pre_buffer_time, post_buffer_time, gains, duty_max)
+function output_data = RunTrajectoryExperiment( angle1_init, angle2_init, traj_time, pre_buffer_time, post_buffer_time, gains, duty_max,x_center,y_center,radius,angular_velocity)
     
     % Figure for plotting motor data
     figure(1);  clf;       
@@ -185,13 +185,17 @@ function output_data = RunTrajectoryExperiment( angle1_init, angle2_init, angle3
     input = [start_period traj_time end_period];
     input = [input angle1_init angle2_init];
     input = [input K_xx K_yy K_xy D_xx D_yy D_xy];
-    input = [input duty_max];
-    input = [input pts_foot(:)']; % final size of input should be 28x1
-    
+    input = [input duty_max x_center, y_center, radius, angular_velocity];
+%     input = [input pts_foot(:)']; % final size of input should be 28x1
     params.timeout  = (start_period+traj_time+end_period);  
     
     output_size = 19;    % number of outputs expected
     output_data = RunExperiment(frdm_ip,frdm_port,input,output_size,params);
     linkaxes([a1 a2 a3 a4],'x')
+
+    FID = fopen('output_data.txt', 'w');
+    if FID == -1, error('Cannot create file.'); end
+    fprintf(FID, '%g %g %g %g %g %g %g %g %g %g %g %g %g %g %g %g %g %g %g\n', output_data);
+    fclose(FID);
     
 end
