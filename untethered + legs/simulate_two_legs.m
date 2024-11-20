@@ -19,11 +19,11 @@ function simulate_twolegs()
     qlims = [q1_min, q1_max, q2_min, q2_max];
 
     restitution_coeff = 0.;
-    friction_coeff = 0.3;
+    friction_coeff = 0.8;
     ground_height = 0;
 
     step_th = deg2rad(30);
-    step_w = 0.1; % ~10cm step depth
+    step_w = 0.05; % step depth
     step_h = tan(step_th)*step_w; %find step height. tan(stair_th) = stair_h/stair_w
     % offset_x = -step_w/3;
     offset_x = 0;
@@ -33,13 +33,14 @@ function simulate_twolegs()
     p   = [m1 m2 m3 m4 I1 I2 I3 I4 Ir N l_O_m1 l_B_m2 l_A_m3 l_C_m4 l_OA l_OB l_AC l_DE g]';
        
     % %% Simulation Parameters Set 2 -- Operational Space Control
-    % p_traj.omega = 3; %rad/sec
+    %%%%%%%%%%%%%%CONTROL ELLIPSE PARAMETERS %%%%%%%%%%%%%%
+    p_traj.omega = -3; %rad/sec
     L = (l_DE+l_OB);
-    p_traj.x_off   = 0;
-    p_traj.y_off   = -L;
-    p_traj.a     = 0.025;
-    p_traj.b     = 0.05;
-    p_traj.phi  = -step_th;
+    p_traj.x_off   = L/4;
+    p_traj.y_off   = -L*1.3;
+    p_traj.a     = 0.08;
+    p_traj.b     = 0.035;
+    p_traj.phi  = step_th;
 
     
     %% Perform Dynamic simulation
@@ -52,9 +53,10 @@ function simulate_twolegs()
     z_out = zeros(12,num_step);
     z_out(:,1) = z0;
     
+
     for i=1:num_step-1
         
-        dz = dynamics(tspan(i), z_out(:,i), p);
+        dz = dynamics(tspan(i), z_out(:,i), p, p_traj);
         % Update state with dynamics
         z_temp = z_out(:,i) + dz * dt;
     
@@ -66,6 +68,9 @@ function simulate_twolegs()
     
         % Update the state
         z_out(:,i+1) = z_temp;
+
+        % % Target traj
+       
     end
     
     %% Compute Energy
@@ -123,98 +128,101 @@ function simulate_twolegs()
     %% Animate Solution
     figure(6); clf;
     hold on
-  
-    % % Target traj
-    TH = 0:.1:2*pi;
-    % plot( p_traj.x_0 + p_traj.r * cos(TH), ...
-    %       p_traj.y_0 + p_traj.r * sin(TH),'k--'); 
-    x_center = z0(1) + p_traj.x_off;
-    y_center = z0(2) + p_traj.y_off;
-    plot(x_center + p_traj.a * cos(TH) * cos(p_traj.phi) - p_traj.b * sin(TH) * sin(p_traj.phi), ...
-        y_center + p_traj.a * cos(TH) * sin(p_traj.phi) + p_traj.b * sin(TH) * cos(p_traj.phi), 'k--');
-
 
     % Ground Q2.3
-    steps = 5;
+    steps = 50;
     stair_X = linspace(-step_w,step_w*steps,1000);
     stair_Y = stair_height(stair_X);
     plot(stair_X,stair_Y,'k');
     
-    animateSol(tspan, z_out,p);
+    animateSol(tspan, z_out,p, p_traj);
 end
 
-% function tau = control_law(t, z, p)
-%     % Controller gains, Update as necessary for Problem 1
-%     K_x = 150.; % Spring stiffness X
-%     K_y = 150.; % Spring stiffness Y
-%     D_x = 10.;  % Damping X
-%     D_y = 10.;  % Damping Y
-% 
-%     K = [K_x, 0 ; 0, K_y]; %K_xy = 0 
-%     D = [D_x, 0 ; 0, D_y]; %D_xy = 0 
-% 
-%     % Desired position of foot is a circle
-%     omega_swing = p_traj.omega; %rad/sec
-%     rEd1 = [p_traj.x_0 p_traj.y_0 0]' + ...
-%             p_traj.r*[cos(omega_swing*t) sin(omega_swing*t) 0]';
-%     % Compute desired velocity of foot
-%     vEd1 = p_traj.r*[-sin(omega_swing*t)*omega_swing    ...
-%                      cos(omega_swing*t)*omega_swing   0]';
-%     % Desired acceleration
-%     aEd1 = p_traj.r*[-cos(omega_swing*t)*omega_swing^2 ...
-%                     -sin(omega_swing*t)*omega_swing^2 0]';
-%     % Leg 2 
-%     PS = pi/2; % Phase shift for legs (rad)! legs move at 90deg out-of-phase 
-%     rEd2 = [p_traj.x_0 p_traj.y_0 0]' + ...
-%             p_traj.r*[cos(omega_swing*(t+PS)) sin(omega_swing*(t+PS)) 0]';
-%     vEd2 = p_traj.r*[-sin(omega_swing*(t+PS))*omega_swing    ...
-%                      cos(omega_swing*(t+PS))*omega_swing   0]';
-%     aEd2 = p_traj.r*[-cos(omega_swing*(t+PS))*omega_swing^2 ...
-%                     -sin(omega_swing*(t+PS))*omega_swing^2 0]';
-% 
-%     % Actual position and velocity 
-%     rE1 = position_foot1(z,p);
-%     vE1 = velocity_foot1(z,p);
-%     rE2 = position_foot2(z,p);
-%     vE2 = velocity_foot2(z,p);
-% 
-%     % To get f, WE NEED LAMBDA, MU, & RHO
-%     lambda = inv (jacobian_foot1(z,p) * inv(A_twolegs(z,p)) * (jacobian_foot1(z,p).'));
-%     mu1 = (lambda * jacobian_foot1(z,p) * inv(A_twolegs(z,p)) * Corr_twolegs(z,p)) - (lambda * jacobian_dot_foot1(z,p) * qdot_twolegs(z,p));
-%     rho1 = lambda * jacobian_foot1(z,p) * inv(A_twolegs(z,p)) * Grav_twolegs(z,p);
-%     % Compute virtual foce 
-%     intermediate1 = aEd1 + K * (rEd1 - rE1(1:2, 1:end)) + D * (vEd1 - vE1(1:2, 1:end));
-%     % intermediate2 = K * (rEd1 - rE1(1:2, 1:end)) + D * (vEd1 - vE1(1:2, 1:end)); %without aceeleration component
-%     f1 = lambda * intermediate1 + mu1 + rho1; % should result in a 2x1 matrix
-% 
-%     lambda2 = inv (jacobian_foot2(z,p) * inv(A_twolegs(z,p)) * (jacobian_foot2(z,p).'));
-%     mu2 = (lambda2 * jacobian_foot2(z,p) * inv(A_twolegs(z,p)) * Corr_twolegs(z,p)) - (lambda2 * jacobian_dot_foot2(z,p) * qdot_twolegs(z,p));
-%     rho2 = lambda2 * jacobian_foot2(z,p) * inv(A_twolegs(z,p)) * Grav_twolegs(z,p);
-%     intermediate2 = aEd2 + K * (rEd2 - rE2(1:2, 1:end)) + D * (vEd2 - vE2(1:2, 1:end));
-%     f2 = lambda2 * intermediate2 + mu2 + rho2;
-% 
-%     % % Compute virtual foce for Question 1.4 and 1.5
-%     % f  = [K_x * (rEd1(1) - rE(1) ) + D_x * ( - vE(1) ) ;
-%     %       K_y * (rEd1(2) - rE(2) ) + D_y * ( - vE(2) ) ];
-%     % 
-%     %% Task-space compensation and feed forward for Question 1.8
-% 
-%     % Map to joint torques  
-%     J1  = jacobian_foot1(z,p);
-%     tau1 = J1' * f1;
-%     J2  = jacobian_foot2(z,p);
-%     tau2 = J2' * f2;
-%     tau = [tau1, tau2];
-% end
+function tau = control_law(t, z, p, p_traj)
+    % Controller gains, Update as necessary for Problem 1
+    K_x = 150.; % Spring stiffness X
+    K_y = 500.; % Spring stiffness Y
+    D_x = 10.;  % Damping X
+    D_y = 10.;  % Damping Y
+
+    K = [K_x, 0 ; 0, K_y]; %K_xy = 0 
+    D = [D_x, 0 ; 0, D_y]; %D_xy = 0 
+    
+    %base position
+    x_center = z(1) + p_traj.x_off;
+    y_center = z(2) + p_traj.y_off;
+    
+    %current ellipse angles
+    phase = pi; %phase shift between legs
+    w = p_traj.omega;
+    a = p_traj.a;
+    b = p_traj.b;
+    phi = p_traj.phi;
+    theta1 = w*t; %foot 1
+    theta2 = theta1 + phase;
+    
+    %ellipse equation
+    x_pos = @(theta) x_center + a * cos(theta) * cos(phi) - b * sin(theta) * sin(phi);
+    y_pos = @(theta) y_center + a * cos(theta) * sin(phi) + b * sin(theta) * cos(phi);
+    
+    x_vel = @(theta) - a * sin(theta) * cos(phi)*w - b * cos(theta) * sin(phi) * w;
+    y_vel = @(theta) - a * sin(theta) * sin(phi)*w + b * cos(theta) * cos(phi) * w;
+
+    x_acc = @(theta) - a * cos(theta) * cos(phi)*w^2 + b * sin(theta) * sin(phi) * w^2;
+    y_acc = @(theta) - a * cos(theta) * sin(phi)*w^2 - b * sin(theta) * cos(phi) * w^2;
+    
+    % Desired position of foot is a circle
+    rEd1 = [x_pos(theta1) y_pos(theta1)]';
+    vEd1 = [x_vel(theta1) y_vel(theta1)]';
+    aEd1 = [x_acc(theta1) y_acc(theta1)]';
+    % Leg 2 
+    rEd2 = [x_pos(theta2) y_pos(theta2)]';
+    vEd2 = [x_vel(theta2) y_vel(theta2)]';
+    aEd2 = [x_acc(theta2) y_acc(theta2)]';
+
+    % Actual position and velocity 
+    rE1 = position_foot1(z,p);
+    vE1 = velocity_foot1(z,p);
+    rE2 = position_foot2(z,p);
+    vE2 = velocity_foot2(z,p);
+
+    % To get f, WE NEED LAMBDA, MU, & RHO
+    lambda = inv (jacobian_foot1(z,p) * inv(A_twolegs(z,p)) * (jacobian_foot1(z,p).'));
+    mu1 = (lambda * jacobian_foot1(z,p) * inv(A_twolegs(z,p)) * Corr_twolegs(z,p)) - (lambda * jacobian_dot_foot1(z,p) * qdot_twolegs(z,p));
+    rho1 = lambda * jacobian_foot1(z,p) * inv(A_twolegs(z,p)) * Grav_twolegs(z,p);
+
+    % Compute virtual foce 
+    intermediate1 = aEd1 + K * (rEd1 - rE1(1:2, 1:end)) + D * (vEd1 - vE1(1:2, 1:end));
+    f1 = lambda * intermediate1 + mu1 + rho1; % should result in a 2x1 matrix
+
+    lambda2 = inv (jacobian_foot2(z,p) * inv(A_twolegs(z,p)) * (jacobian_foot2(z,p).'));
+    mu2 = (lambda2 * jacobian_foot2(z,p) * inv(A_twolegs(z,p)) * Corr_twolegs(z,p)) - (lambda2 * jacobian_dot_foot2(z,p) * qdot_twolegs(z,p));
+    rho2 = lambda2 * jacobian_foot2(z,p) * inv(A_twolegs(z,p)) * Grav_twolegs(z,p);
+    intermediate2 = aEd2+ K * (rEd2 - rE2(1:2, 1:end)) + D * (vEd2 - vE2(1:2, 1:end)); % aEd2
+    f2 = lambda2 * intermediate2 + mu2 + rho2;
+    % disp(f2)
+
+    %% Task-space compensation and feed forward for Question 1.8
+
+    % Map to joint torques  
+    J1  = jacobian_foot1(z,p);
+    tau1 = J1' * f1;
+    tau1 = tau1(3:4);
+    J2  = jacobian_foot2(z,p);
+    tau2 = J2' * f2;
+    tau2 = tau2(5:6);
+    tau = [0;0;tau1; tau2]; %%
+    % disp(tau)
+end
 
 
-function dz = dynamics(t,z,p)
+function dz = dynamics(t,z,p, p_traj)
     % Get mass matrix
     A = A_twolegs(z,p);
     
     % Compute Controls
-    % tau = control_law(t,z,p,p_traj);
-    tau = zeros(6,1);
+    tau = control_law(t,z,p,p_traj);
+    % tau = zeros(6,1);
     
     % Get b = Q - V(q,qd) - G(q)
     b = b_twolegs(z,tau,p);
@@ -224,6 +232,7 @@ function dz = dynamics(t,z,p)
     dz = zeros(size(z));
     
     % Form dz
+    % disp(qdd)
     dz(1:6) = z(7:12);
     dz(7:12) = qdd;
 end
@@ -243,7 +252,7 @@ function qdot = discrete_impact_contact(z,p, rest_coeff, fric_coeff, yC_fun)
     osim2 = inv (J2 * inv_A * J2');
     xhat = [1,0];
     yhat = [0,1];
-    mass_eff_x1 = 1 / ( xhat * inv(osim1) * xhat'); %m_eff_r = 1/(rhat*inv(osim)*rhat.')
+    mass_eff_x1 = 1 / (xhat * inv(osim1) * xhat'); %m_eff_r = 1/(rhat*inv(osim)*rhat.')
     mass_eff_y1 = 1 / (yhat * inv(osim1) * yhat');
     mass_eff_x2 = 1 / (xhat * inv(osim2) * xhat'); %m_eff_r = 1/(rhat*inv(osim)*rhat.')
     mass_eff_y2 = 1 / (yhat * inv(osim2) * yhat');
@@ -339,7 +348,7 @@ function qdot = joint_limit_constraint(z, p, limits)
 end
 
 
-function animateSol(tspan, x,p)
+function animateSol(tspan,x,p,p_traj)
     % Prepare plot handles
     hold on
     h_OB = plot([0],[0],'LineWidth',2);
@@ -350,14 +359,16 @@ function animateSol(tspan, x,p)
     h_AC2 = plot([0],[0],'LineWidth',2);
     h_BD2 = plot([0],[0],'LineWidth',2);
     h_CE2 = plot([0],[0],'LineWidth',2);
+    h_ellipse = plot([0],[0],'LineWidth',2);
    
     
     xlabel('x'); ylabel('y');
     h_title = title('t=0.0s');
     
     axis equal
-    axis([-.2 .2 -.1 .3]);
+    axis([-.25 1.0 -0.25 1.5]);
 
+    TH = 0:.1:2*pi;
     %Step through and update animation
     for i = 1:length(tspan)
         % skip frame.
@@ -405,6 +416,16 @@ function animateSol(tspan, x,p)
         
         set(h_CE2,'XData',[rC2(1) rE2(1)]);
         set(h_CE2,'YData',[rC2(2) rE2(2)]);
+
+        %draw ellipse
+        x_center = z(1) + p_traj.x_off;
+        y_center = z(2) + p_traj.y_off;
+        X_ell = x_center + p_traj.a * cos(TH) * cos(p_traj.phi) - p_traj.b * sin(TH) * sin(p_traj.phi);
+        Y_ell = y_center + p_traj.a * cos(TH) * sin(p_traj.phi) + p_traj.b * sin(TH) * cos(p_traj.phi);
+
+        set(h_ellipse, 'XData',X_ell);
+        set(h_ellipse, 'YData',Y_ell);
+        
 
         pause(.01)
     end

@@ -49,6 +49,7 @@ function simulate_leg()
     
         % Update the state
         z_out(:,i+1) = z_temp;
+        disp(z_out)
     end
 
     %% Compute Energy
