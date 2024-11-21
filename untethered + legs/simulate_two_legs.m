@@ -19,7 +19,7 @@ function simulate_twolegs()
     qlims = [q1_min, q1_max, q2_min, q2_max];
 
     restitution_coeff = 0.;
-    friction_coeff = 0.8;
+    friction_coeff = 1;
     ground_height = 0;
 
     step_th = deg2rad(30);
@@ -34,13 +34,14 @@ function simulate_twolegs()
        
     % %% Simulation Parameters Set 2 -- Operational Space Control
     %%%%%%%%%%%%%%CONTROL ELLIPSE PARAMETERS %%%%%%%%%%%%%%
-    p_traj.omega = -3; %rad/sec
+    p_traj.omega = -4; %rad/sec
     L = (l_DE+l_OB);
-    p_traj.x_off   = L/4;
-    p_traj.y_off   = -L*1.3;
+    p_traj.x_off   = -L*0.7;
+    p_traj.y_off   = -L*1.6;
     p_traj.a     = 0.08;
-    p_traj.b     = 0.035;
-    p_traj.phi  = step_th;
+    p_traj.b     = 0.05;
+    p_traj.phi  = step_th*2;
+    p_traj.phase = pi;
 
     
     %% Perform Dynamic simulation
@@ -130,8 +131,8 @@ function simulate_twolegs()
     hold on
 
     % Ground Q2.3
-    steps = 50;
-    stair_X = linspace(-step_w,step_w*steps,1000);
+    steps = 500;
+    stair_X = linspace(-step_w,step_w*steps,10000);
     stair_Y = stair_height(stair_X);
     plot(stair_X,stair_Y,'k');
     
@@ -153,7 +154,7 @@ function tau = control_law(t, z, p, p_traj)
     y_center = z(2) + p_traj.y_off;
     
     %current ellipse angles
-    phase = pi; %phase shift between legs
+    phase = p_traj.phase; %phase shift between legs
     w = p_traj.omega;
     a = p_traj.a;
     b = p_traj.b;
@@ -360,8 +361,9 @@ function animateSol(tspan,x,p,p_traj)
     h_BD2 = plot([0],[0],'LineWidth',2);
     h_CE2 = plot([0],[0],'LineWidth',2);
     h_ellipse = plot([0],[0],'LineWidth',2);
+    h_ref1 = plot([0],[0],'r.');
+    h_ref2 = plot([0],[0],'b.');
    
-    
     xlabel('x'); ylabel('y');
     h_title = title('t=0.0s');
     
@@ -420,11 +422,18 @@ function animateSol(tspan,x,p,p_traj)
         %draw ellipse
         x_center = z(1) + p_traj.x_off;
         y_center = z(2) + p_traj.y_off;
-        X_ell = x_center + p_traj.a * cos(TH) * cos(p_traj.phi) - p_traj.b * sin(TH) * sin(p_traj.phi);
-        Y_ell = y_center + p_traj.a * cos(TH) * sin(p_traj.phi) + p_traj.b * sin(TH) * cos(p_traj.phi);
+        X_ell = @(theta) x_center + p_traj.a .* cos(theta) .* cos(p_traj.phi) - p_traj.b .* sin(theta) .* sin(p_traj.phi);
+        Y_ell = @(theta) y_center + p_traj.a * cos(theta) .* sin(p_traj.phi) + p_traj.b .* sin(theta) .* cos(p_traj.phi);
 
-        set(h_ellipse, 'XData',X_ell);
-        set(h_ellipse, 'YData',Y_ell);
+        set(h_ellipse, 'XData',X_ell(TH));
+        set(h_ellipse, 'YData',Y_ell(TH));
+            
+        %track references
+        theta1 = t*p_traj.omega;
+        theta2 = t*p_traj.omega+p_traj.phase;
+        display(X_ell(theta1))
+        set(h_ref1, {'XData','YData'}, {X_ell(theta1), Y_ell(theta1)})
+        set(h_ref2, {'XData','YData'}, {X_ell(theta2), Y_ell(theta2)})
         
 
         pause(.01)
