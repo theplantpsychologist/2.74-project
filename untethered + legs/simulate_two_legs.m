@@ -12,14 +12,14 @@ function simulate_twolegs()
     Ir = 0.0035/N^2;
     g = 9.81;    
 
-    q1_min = deg2rad(-50);
-    q1_max = deg2rad(50);
+    q1_min = deg2rad(-80);
+    q1_max = deg2rad(80);
     q2_min = deg2rad(10);
     q2_max = deg2rad(170);
     qlims = [q1_min, q1_max, q2_min, q2_max];
 
     restitution_coeff = 0.;
-    friction_coeff = 0.4;
+    friction_coeff = 0.8;
     ground_height = 0;
 
     step_th = deg2rad(30);
@@ -140,7 +140,7 @@ function simulate_twolegs()
     stair_X = linspace(-step_w,step_w*steps,1000);
     stair_Y = stair_height(stair_X);
     plot(stair_X,stair_Y,'k');
-    % plot([-2 5], [0 0], 'k--');
+    % plot([-2 5], [ground_height ground_height], 'k--');
     
     animateSol(tspan, z_out,p, p_traj);
 end
@@ -187,26 +187,6 @@ function tau = control_law(t, z, p, p_traj)
     vEd2 = [x_vel(theta2) y_vel(theta2)]';
     aEd2 = [x_acc(theta2) y_acc(theta2)]';
 
-
-    %CIRCLE TESTING
-    % omega_swing = p_traj.omega; %rad/sec
-    % rEd1 = [x_center y_center]' + ...
-    %         p_traj.r*[cos(omega_swing*t) sin(omega_swing*t) ]';
-    % % Compute desired velocity of foot
-    % vEd1 = p_traj.r*[-sin(omega_swing*t)*omega_swing    ...
-    %                  cos(omega_swing*t)*omega_swing  ]';
-    % % Desired acceleration
-    % aEd1 = p_traj.r*[-cos(omega_swing*t)*omega_swing^2 ...
-    %                 -sin(omega_swing*t)*omega_swing^2 ]';
-    % % Leg 2 
-    % PS = p_traj.phase; % Phase shift for legs (rad)! legs move at 90deg out-of-phase 
-    % rEd2 = [x_center y_center]' + ...
-    %         p_traj.r*[cos(omega_swing*(t+PS)) sin(omega_swing*(t+PS)) ]';
-    % vEd2 = p_traj.r*[-sin(omega_swing*(t+PS))*omega_swing    ...
-    %                  cos(omega_swing*(t+PS))*omega_swing   ]';
-    % aEd2 = p_traj.r*[-cos(omega_swing*(t+PS))*omega_swing^2 ...
-    %                 -sin(omega_swing*(t+PS))*omega_swing^2 ]'; %2x2 matrix
-
     % Actual position and velocity 
     rE1 = position_foot1(z,p);
     vE1 = velocity_foot1(z,p);
@@ -220,8 +200,8 @@ function tau = control_law(t, z, p, p_traj)
     inv_A = inv(A);
     % inv_A1 = inv(A1);
     % inv_A2 = inv(A2);
-    Corr = Corr_leg(z,p);      % 6x2 matrix
-    Grav = Grav_leg(z,p);      % 6x2 matrix
+    Corr = Corr_twolegs(z,p);      % 6x2 matrix
+    Grav = Grav_twolegs(z,p);      % 6x2 matrix
     qdot = qdot_twolegs(z,p);  % 6x1 matrix
     J1  = jacobian_foot1(z,p); % 2x6 matrix
     % J1  = J1(:, 3:4);
@@ -229,15 +209,17 @@ function tau = control_law(t, z, p, p_traj)
     % J2 = J2(:, 5:6);
 
     dJ1 = jacobian_dot_foot1(z,p);
-    % dJ1 = dJ1(:, 3:4);
     dJ2 = jacobian_dot_foot2(z,p);
-    % dJ2 = dJ2(:, 5:6);
     % disp(A)
     % disp(inv_A1)
     % disp(Corr)
     % disp(Grav)
     % disp(qdot)
     % disp(qdot)
+    % Mass matrix of actuated joints
+    % Compute Jacobians with respect to actuated joints only
+    J1 = jacobian_foot1(z, p); % Original 2x6 Jacobian
+    J2 = jacobian_foot2(z, p); % Original 2x6 Jacobian
 
     % To get f, WE NEED LAMBDA, MU, & RHO
     lambda = inv (J1 * inv_A * (J1.'));
@@ -253,35 +235,18 @@ function tau = control_law(t, z, p, p_traj)
     rho2 = lambda2 * J2 * inv_A * Grav;
     intermediate2 = aEd2+ K * (rEd2 - rE2(1:2, 1:end)) + D * (vEd2 - vE2(1:2, 1:end)); % aEd2
     f2 = lambda2 * intermediate2 + mu2 + rho2;
-    %
-
-    %%TRIED DOING SOMETHING BUT IT DOESNT WORK
-    % lambda = inv (J1 * inv_A1 * (J1.')); %2x2 matrix
-    % mu1 = (lambda * J1 * inv_A1 * Corr(1:2)) - (lambda * dJ1 * qdot(1:2));
-    % rho1 = lambda * J1 * inv_A1 * Grav(1:2);
-    % % Compute virtual foce 
-    % intermediate1 = aEd1 + K * (rEd1 - rE1(1:2, 1:end)) + D * (vEd1 - vE1(1:2, 1:end));
-    % % intermediate2 = K * (rEd1 - rE1(1:2, 1:end)) + D * (vEd1 - vE1(1:2, 1:end)); %without aceeleration component
-    % f1 = lambda * intermediate1 + mu1 + rho1; % should result in a 2x1 matrix
-    % 
-    % lambda2 = inv (J2 * inv_A2 * (J2.'));
-    % mu2 = (lambda2 * J2 * inv_A2 * Corr(3:4)) - (lambda2 * dJ2 * qdot(3:4));
-    % rho2 = lambda2 * J2 * inv_A2 * Grav(3:4);
-    % intermediate2 = aEd2 + K * (rEd2 - rE2(1:2, 1:end)) + D * (vEd2 - vE2(1:2, 1:end));
-    % f2 = lambda2 * intermediate2 + mu2 + rho2;
 
 
     %% Task-space compensation and feed forward for Question 1.8
 
     % Map to joint torques  
-    
+
     tau1 = J1' * f1;
     tau1 = tau1(3:4);
-    
+
     tau2 = J2' * f2;
     tau2 = tau2(5:6);
     tau = [0;0;tau1; tau2]; %%
-    % disp(tau)
 end
 
 
