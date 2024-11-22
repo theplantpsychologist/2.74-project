@@ -126,6 +126,7 @@ float radius=0;
 float x_center=0;
 float y_center=0;
 float angular_velocity = 0;
+float ground = 0;
 
 // Model parameters
 float supply_voltage = 12;     // motor supply voltage
@@ -388,33 +389,27 @@ int main (void)
                 }
                 
                 // Get desired foot positions and velocities
+                ground = y_center-radius/2;
 
                 float rDesFoot_1[2] , vDesFoot_1[2];
-                rDesFoot_1[0] = x_center + radius*cos((angular_velocity*t.read()-cos(angular_velocity*t.read())));
-                rDesFoot_1[1] = y_center + radius*sin((angular_velocity*t.read()-cos(angular_velocity*t.read())));
-                vDesFoot_1[0] = radius*sin(cos(angular_velocity*t.read()) - angular_velocity*t.read())*(angular_velocity + angular_velocity*sin(angular_velocity*t.read()))
-;
-                vDesFoot_1[1] = radius*cos(cos(angular_velocity*t.read()) - angular_velocity*t.read())*(angular_velocity + angular_velocity*sin(angular_velocity*t.read()));
-
-                // rDesFoot_bez_1.evaluate(teff/traj_period,rDesFoot_1);
-                // rDesFoot_bez_1.evaluateDerivative(teff/traj_period,vDesFoot_1);
-                // vDesFoot_1[0]/=traj_period;
-                // vDesFoot_1[1]/=traj_period;
-                // vDesFoot_1[0]*=vMult;
-                // vDesFoot_1[1]*=vMult;
+                rDesFoot_1[0] = x_center + radius*cos((pi/4+angular_velocity*t.read()-cos(angular_velocity*t.read())));
+                rDesFoot_1[1] = max(ground, y_center + radius*sin((pi/4+angular_velocity*t.read()-cos(angular_velocity*t.read()))) );
+                // rDesFoot_1[1] = y_center + radius*sin((angular_velocity*t.read()-cos(angular_velocity*t.read())));
+                vDesFoot_1[0] = radius*sin(-pi/4 + cos(angular_velocity*t.read()) - angular_velocity*t.read())*(angular_velocity + angular_velocity*sin(angular_velocity*t.read()));
+                vDesFoot_1[1] = radius*cos(-pi/4+ cos(angular_velocity*t.read()) - angular_velocity*t.read())*(angular_velocity + angular_velocity*sin(angular_velocity*t.read()));
 
                 float rDesFoot_2[2] , vDesFoot_2[2];
-                rDesFoot_2[0] = x_center + radius*cos(angular_velocity*(t.read()+pi-cos(t.read()+pi)));
-                rDesFoot_2[1] = y_center + radius*sin(angular_velocity*(t.read()+pi-cos(t.read()+pi)));
-                vDesFoot_2[0] = angular_velocity*radius*sin(angular_velocity*(t + pi + cos(t)))*(sin(t) - 1);
-                vDesFoot_2[1] = -angular_velocity*radius*cos(angular_velocity*(t + pi + cos(t)))*(sin(t) - 1);
+                rDesFoot_2[0] = x_center + radius*cos(pi/4+angular_velocity*t.read()+pi-cos(angular_velocity*t.read()+pi));
+                rDesFoot_2[1] = max(ground, y_center + radius*sin(pi/4+angular_velocity*t.read()+pi-cos(angular_velocity*t.read()+pi)) );
+                // rDesFoot_2[1] = y_center + radius*sin(pi/4+angular_velocity*t.read()+pi-cos(angular_velocity*t.read()+pi));
+                vDesFoot_2[0] = angular_velocity*radius*sin(pi/4+angular_velocity*t.read() + pi + cos(angular_velocity*t.read()))*(sin(angular_velocity*t.read()) - 1);
+                vDesFoot_2[1] = -angular_velocity*radius*cos(pi/4+angular_velocity*t.read() + pi + cos(angular_velocity*t.read()))*(sin(angular_velocity*t.read()) - 1);
+                // float rDesFoot_2[2] , vDesFoot_2[2];
+                // rDesFoot_2[0] = x_center + radius*cos(angular_velocity*(t.read()+pi-cos(t.read()+pi)));
+                // rDesFoot_2[1] = y_center + radius*sin(angular_velocity*(t.read()+pi-cos(t.read()+pi)));
+                // vDesFoot_2[0] = angular_velocity*radius*sin(angular_velocity*(t + pi + cos(t)))*(sin(t) - 1);
+                // vDesFoot_2[1] = -angular_velocity*radius*cos(angular_velocity*(t + pi + cos(t)))*(sin(t) - 1);
 
-                // rDesFoot_bez_2.evaluate(teff/traj_period,rDesFoot_2);
-                // rDesFoot_bez_2.evaluateDerivative(teff/traj_period,vDesFoot_2);
-                // vDesFoot_2[0]/=traj_period;
-                // vDesFoot_2[1]/=traj_period;
-                // vDesFoot_2[0]*=vMult;
-                // vDesFoot_2[1]*=vMult;
                 
                 // Calculate the inverse kinematics (joint positions and velocities) for desired joint angles              
                 float xFoot_inv_1 = -rDesFoot_1[0];
