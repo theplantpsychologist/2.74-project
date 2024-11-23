@@ -18,6 +18,9 @@ function simulate_twolegs()
     q2_max = deg2rad(170);
     qlims = [q1_min, q1_max, q2_min, q2_max];
 
+    Kt = 0.191; % torque constant of motor
+    R_internal = 1.594; % internal resistance (mbed lab 3) 
+
     restitution_coeff = 0.;
     friction_coeff = 0.8;
     ground_height = 0;
@@ -42,8 +45,8 @@ function simulate_twolegs()
     L = (l_DE+l_OB);
     p_traj.x_off   = -L*0.5;
     p_traj.y_off   = -L*1.3;
-    p_traj.a     = 0.07;
-    p_traj.b     = 0.04;
+    p_traj.a     = 0.06;
+    p_traj.b     = 0.06;
     p_traj.phi  = step_th*2;
     p_traj.phase = pi;
     p_traj.r = (p_traj.a+p_traj.b)/2;%for circle testing
@@ -143,6 +146,10 @@ function simulate_twolegs()
     % plot([-2 5], [ground_height ground_height], 'k--');
     
     animateSol(tspan, z_out,p, p_traj);
+
+    % figure(7); clf 
+    % motorEnergy = computeMotorEnergySpent(tspan, z_out, Kt, R_internal, p, p_traj);
+    % plot(tspan,motorEnergy); xlabel('Time (s)'); ylabel('Energy (J)');
 end
 
 function tau = control_law(t, z, p, p_traj)
@@ -194,24 +201,22 @@ function tau = control_law(t, z, p, p_traj)
     vE2 = velocity_foot2(z,p);
 
 
-    A  = A_twolegs(z,p);       % 4x4 matrix
-    % % A1 = A(3:4,3:4);           % 2x2 matrix
-    % % A2 = A(5:6, 5:6);          % 2x2 matrix
-    % inv_A = inv(A);
-    % % inv_A1 = inv(A1);
-    % % inv_A2 = inv(A2);
+    A  = A_twolegs(z,p);       % 4x4 matrix,now 6x6?
+    % A1 = A(3:4,3:4);           % 2x2 matrix
+    % A2 = A(5:6, 5:6);          % 2x2 matrix
+    inv_A = inv(A);
+    % inv_A1 = inv(A1);
+    % inv_A2 = inv(A2);
     Corr = Corr_twolegs(z,p);      % 6x2 matrix
     Grav = Grav_twolegs(z,p);      % 6x2 matrix
-    % qdot = qdot_twolegs(z,p);  % 6x1 matrix
-    % J1  = jacobian_foot1(z,p); % 2x6 matrix
-    % % J1  = J1(:, 3:4);
-    % J2  = jacobian_foot2(z,p); % 2x6 matrix
-    % % J2 = J2(:, 5:6);
-    % 
+    qdot = qdot_twolegs(z,p);  % 6x1 matrix
+    J1  = jacobian_foot1(z,p); % 2x6 matrix
+    % J1  = J1(:, 3:4);
+    J2  = jacobian_foot2(z,p); % 2x6 matrix
+    % J2 = J2(:, 5:6);
+
     dJ1 = jacobian_dot_foot1(z,p);
-    dJ1_act = dJ1(:, 3:6);
     dJ2 = jacobian_dot_foot2(z,p);
-    dJ2_act = dJ2(:, 3:6);
     % disp(A)
     % disp(inv_A1)
     % disp(Corr)
@@ -244,13 +249,12 @@ function tau = control_law(t, z, p, p_traj)
     % Map to joint torques  
 
     tau1 = J1' * f1;
-    tau1 = tau1(3:4);
+    tau1 = tau1(3:4); 
 
     tau2 = J2' * f2;
     tau2 = tau2(5:6);
-    tau = [0;0;tau1; tau2]; %%
+    tau = [0;0;tau1; tau2]; %% is a 6x1 matrix
 end
-
 
 function dz = dynamics(t,z,p, p_traj)
     % Get mass matrix
@@ -329,6 +333,27 @@ function qdot = discrete_impact_contact(z,p, rest_coeff, fric_coeff, yC_fun)
     end
     qdot = qdot;
 
+end
+
+function motorEnergy = computeMotorEnergySpent (t, z, Kt, R_internal, p, p_traj)
+    % calculates energy consumed by motors
+    % returns totalenergy
+    tau = control_law(t,z,p,p_traj);
+    totalEnergy = 0;
+    % Calculate the enrgy motor by motor, then add to totalEnergy
+    % for m = 1:4
+    %     m_index = m+2; 
+    %     torque = tau(m_index);
+    %     % tau1_leg1 = tau(3);
+    %     % tau2_leg1 = tau(4);
+    %     % tau1_leg2 = tau(5);
+    %     % tau2_leg2 = tau(6);
+    %     current = torque/Kt;
+    %     power = (current.^2) / R_internal;
+    %     motorEnergy = trapz(t, power);
+    %     totalEnergy = totalEnergy + motorEnergy;
+    % end
+    figure(7); clf 
 end
 
 function qdot = joint_limit_constraint(z, p, limits)
