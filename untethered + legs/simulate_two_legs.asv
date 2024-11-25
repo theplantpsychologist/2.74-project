@@ -62,6 +62,8 @@ function simulate_twolegs()
     z_out = zeros(12,num_step);
     z_out(:,1) = z0;
     
+    torque_comm = zeros(6,num_step); 
+    % torque_comm(:,1) = [0;0;0;0]; %unsure if this is necessary 
 
     for i=1:num_step-1
         
@@ -78,7 +80,8 @@ function simulate_twolegs()
         % Update the state
         z_out(:,i+1) = z_temp;
 
-        % % Target traj
+        % Updates new column of torque_comm at each time step 
+        torque_comm(:,i) = control_law(tspan(i), z_out(:,i), p, p_traj); 
        
     end
     
@@ -147,9 +150,11 @@ function simulate_twolegs()
     
     animateSol(tspan, z_out,p, p_traj);
 
-    % figure(7); clf 
-    % motorEnergy = computeMotorEnergySpent(tspan, z_out, Kt, R_internal, p, p_traj);
-    % plot(tspan,motorEnergy); xlabel('Time (s)'); ylabel('Energy (J)');
+    % Calculate & Plot Energy spent by motors (based on currents and torques commanded)
+    figure(7); clf 
+    totalEnergy = computeMotorEnergySpent(tspan, torque_comm, Kt, R_internal);
+    % motorEnergy = tspan;
+    plot(tspan,totalEnergy); xlabel('Time (s)'); ylabel('Energy (J)');
 end
 
 function tau = control_law(t, z, p, p_traj)
@@ -335,25 +340,27 @@ function qdot = discrete_impact_contact(z,p, rest_coeff, fric_coeff, yC_fun)
 
 end
 
-function motorEnergy = computeMotorEnergySpent (t, z, Kt, R_internal, p, p_traj)
+function totalEnergy = computeMotorEnergySpent (t, torque_comm, Kt, R_internal)
     % calculates energy consumed by motors
-    % returns totalenergy
-    tau = control_law(t,z,p,p_traj);
-    totalEnergy = 0;
+    % returns totalEnergy vector (useful for plotting) 
+
+    torque_comm = torque_comm(3:6, :); % entries 1&2 outputted by control_law aren't motor torques 
+    totalEnergy = zeros(1,length(t));
+    % totalEnergy = 0;
+    power = zeros(1,length(t));
     % Calculate the enrgy motor by motor, then add to totalEnergy
-    % for m = 1:4
-    %     m_index = m+2; 
-    %     torque = tau(m_index);
-    %     % tau1_leg1 = tau(3);
-    %     % tau2_leg1 = tau(4);
-    %     % tau1_leg2 = tau(5);
-    %     % tau2_leg2 = tau(6);
-    %     current = torque/Kt;
-    %     power = (current.^2) / R_internal;
-    %     motorEnergy = trapz(t, power);
-    %     totalEnergy = totalEnergy + motorEnergy;
-    % end
-    figure(7); clf 
+    for m = 1:4
+        for c = 1:length(t)
+            % torque_comm(m,c)
+            current = torque_comm(m,c)/Kt;
+            power(c) = (current.^2) / R_internal;
+            energyTemp = trapz(t, power);
+            totalEnergy(c) = totalEnergy(c) + energyTemp;
+        end
+        % Reset power vector for the power & energy calculations of the next motor (using next row of torque_comm)
+        power = zeros(1,length(t)); 
+    end
+    totalEnergy = totalEnergy;
 end
 
 function qdot = joint_limit_constraint(z, p, limits)
