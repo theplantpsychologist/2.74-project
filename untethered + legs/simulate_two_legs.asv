@@ -12,20 +12,22 @@ function simulate_twolegs()
     Ir = 0.0035/N^2;
     g = 9.81;    
 
-    q1_min = deg2rad(-80);
-    q1_max = deg2rad(80);
-    q2_min = deg2rad(10);
-    q2_max = deg2rad(170);
+    q1_min = deg2rad(-90); %-80
+    q1_max = deg2rad(90); %80
+    q2_min = deg2rad(25); %10
+    q2_max = deg2rad(135); %170
     qlims = [q1_min, q1_max, q2_min, q2_max];
 
+    %motor parameters
     Kt = 0.191; % torque constant of motor
     R_internal = 1.594; % internal resistance (mbed lab 3) 
+    v = 12; %volts
 
     restitution_coeff = 0.;
     friction_coeff = 0.8;
     ground_height = 0;
 
-    step_th = deg2rad(30);
+    step_th = deg2rad(50);
     step_w = 0.05; % step depth
     step_h = tan(step_th)*step_w; %find step height. tan(stair_th) = stair_h/stair_w
     % offset_x = -step_w/3;
@@ -33,15 +35,14 @@ function simulate_twolegs()
 
     %%%%%%%%%%%%%%%%%%% CHANGE GROUND CONSTRAINT HERE %%%%%%%%%%%%%%%%%%
     stair_height = @(x) floor((x+offset_x)./step_w).*step_h + ground_height;
-    % stair_height = @(x) ground_height;
 
     %% Parameter vector
-    p   = [m1 m2 m3 m4 I1 I2 I3 I4 Ir N l_O_m1 l_B_m2 l_A_m3 l_C_m4 l_OA l_OB l_AC l_DE g]';
+    p   = [m1 m2 m3 m4 I1 I2 I3 I4 Ir N l_O_m1 l_B_m2 l_A_m3 l_C_m4 l_OA l_OB l_AC l_DE g R_internal Kt v]';
        
     % %% Simulation Parameters Set 2 -- Operational Space Control
 
     %%%%%%%%%%%%%% CONTROL ELLIPSE PARAMETERS %%%%%%%%%%%%%%
-    p_traj.omega = -3; %rad/sec
+    p_traj.omega = -10; %rad/sec
     L = (l_DE+l_OB);
     p_traj.x_off   = -L*0.5;
     p_traj.y_off   = -L*1.3;
@@ -63,7 +64,7 @@ function simulate_twolegs()
     z_out(:,1) = z0;
     
     torque_comm = zeros(6,num_step); 
-    % torque_comm(:,1) = [0;0;0;0]; %unsure if this is necessary 
+    actual_torques = zeros(4, num_step);
 
     for i=1:num_step-1
         
@@ -81,12 +82,15 @@ function simulate_twolegs()
         z_out(:,i+1) = z_temp;
 
         % Updates new column of torque_comm at each time step 
-        torque_comm(:,i) = control_law(tspan(i), z_out(:,i), p, p_traj); 
+        torque_comm(:,i) = control_law(tspan(i), z_out(:,i), p, p_traj);
+
+        % get clipped torques
+        actual_torques(:,i) = motorDynamics(tspan(i),z_out(:,i),p,torque_comm(:,i));
        
     end
     
     %% Compute Energy
-    E = energy_twolegs(z_out,p);
+    E = potential_energy_twolegs(z_out,p);
     figure(1); clf
     plot(tspan,E);xlabel('Time (s)'); ylabel('Energy (J)');
     
@@ -153,8 +157,30 @@ function simulate_twolegs()
     % Calculate & Plot Energy spent by motors (based on currents and torques commanded)
     figure(7); clf 
     totalEnergy = computeMotorEnergySpent(tspan, torque_comm, Kt, R_internal);
+    net_Energy = totalEnergy - E;
     % motorEnergy = tspan;
-    plot(tspan,totalEnergy); xlabel('Time (s)'); ylabel('Energy (J)');
+    plot(tspan,net_Energy); hold on;
+    plot(tspan,E);
+    plot(tspan,totalEnergy);
+    legend('net','potential','total');
+    xlabel('Time (s)'); ylabel('Energy (J)');
+
+    figure(8); clf
+    plot(tspan, torque_comm(3,:)); hold on; 
+    plot(tspan, torque_comm(4,:)); hold on;
+    plot(tspan, torque_comm(5,:)); hold on;
+    plot(tspan, torque_comm(6,:)); hold on;
+    plot(tspan, actual_torques(1,:));
+    plot(tspan, actual_torques(2,:));
+    plot(tspan, actual_torques(3,:));
+    plot(tspan, actual_torques(4,:));
+    legend('LEG1: Motor 1', 'LEG1: Motor 2', 'LEG2: Motor 1', 'LEG2: Motor 2', 'LEG1: Actual 1', 'LEG1: Actual 2', 'LEG2: Actual 1', 'LEG2: Actual 2')
+    xlabel('Time (s)'); ylabel('Torque Output by Motor (N*m)');
+
+    figure(9); clf
+    plot(tspan,torque_comm(3,:)./Kt)
+    xlabel('Time (s)'); ylabel('Current(Amp)');
+
 end
 
 function tau = control_law(t, z, p, p_traj)
@@ -207,27 +233,15 @@ function tau = control_law(t, z, p, p_traj)
 
 
     A  = A_twolegs(z,p);       % 4x4 matrix,now 6x6?
-    % A1 = A(3:4,3:4);           % 2x2 matrix
-    % A2 = A(5:6, 5:6);          % 2x2 matrix
     inv_A = inv(A);
-    % inv_A1 = inv(A1);
-    % inv_A2 = inv(A2);
     Corr = Corr_twolegs(z,p);      % 6x2 matrix
     Grav = Grav_twolegs(z,p);      % 6x2 matrix
     qdot = qdot_twolegs(z,p);  % 6x1 matrix
     J1  = jacobian_foot1(z,p); % 2x6 matrix
-    % J1  = J1(:, 3:4);
     J2  = jacobian_foot2(z,p); % 2x6 matrix
-    % J2 = J2(:, 5:6);
 
     dJ1 = jacobian_dot_foot1(z,p);
     dJ2 = jacobian_dot_foot2(z,p);
-    % disp(A)
-    % disp(inv_A1)
-    % disp(Corr)
-    % disp(Grav)
-    % disp(qdot)
-    % disp(qdot)
     % Mass matrix of actuated joints
     % Compute Jacobians with respect to actuated joints only
     J1 = jacobian_foot1(z, p); % Original 2x6 Jacobian
@@ -267,8 +281,7 @@ function dz = dynamics(t,z,p, p_traj)
     
     % Compute Controls
     tau = control_law(t,z,p,p_traj);
-    % tau = zeros(6,1);
-    
+
     % Get b = Q - V(q,qd) - G(q)
     b = b_twolegs(z,tau,p);
     
@@ -276,11 +289,7 @@ function dz = dynamics(t,z,p, p_traj)
     qdd = A\(b);
     dz = zeros(size(z));
     
-    % Form dz
-    % disp(qdd)
-    
     dz(1:6) = z(7:12);
-    % dz(1:2) = 0; fix base
     dz(7:12) = qdd;
 end
 
@@ -350,17 +359,33 @@ function totalEnergy = computeMotorEnergySpent (t, torque_comm, Kt, R_internal)
     power = zeros(1,length(t));
     % Calculate the enrgy motor by motor, then add to totalEnergy
     for m = 1:4
+
+        % Calculate power vector & integrate at each step to find energy up
+        % to your current stage, then update totalEnergy at that stage
         for c = 1:length(t)
-            % torque_comm(m,c)
             current = torque_comm(m,c)/Kt;
             power(c) = (current.^2) / R_internal;
+            % trapz over the entire time and power vectors works because
+            % the power vector is zero beyond the current stage 
             energyTemp = trapz(t, power);
             totalEnergy(c) = totalEnergy(c) + energyTemp;
         end
         % Reset power vector for the power & energy calculations of the next motor (using next row of torque_comm)
         power = zeros(1,length(t)); 
     end
+
     totalEnergy = totalEnergy;
+end
+
+function actual_torques = motorDynamics (t,z,p,torque_comm)
+    tau_comm = torque_comm(3:6); 
+    v_max = p(22); Kt = p(21); R = p(20); %motor parameters
+    w = z(9:12); % [w1, w2, w3, w4]
+    I_max = v_max/R; %assumes no back-emf
+    stall_torque = abs(I_max*Kt);
+    back_emf = abs(Kt^2/R.*w);
+    Max_torques = stall_torque - back_emf; %find max torque speed curve at v_max
+    actual_torques = min(Max_torques, abs(tau_comm)).*sign(tau_comm);%apply saturation limit
 end
 
 function qdot = joint_limit_constraint(z, p, limits)
