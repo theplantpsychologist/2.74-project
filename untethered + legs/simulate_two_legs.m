@@ -12,10 +12,10 @@ function simulate_twolegs()
     Ir = 0.0035/N^2;
     g = 9.81;    
 
-    q1_min = deg2rad(-80);
-    q1_max = deg2rad(80);
-    q2_min = deg2rad(10);
-    q2_max = deg2rad(170);
+    q1_min = deg2rad(-90); %-80
+    q1_max = deg2rad(90); %80
+    q2_min = deg2rad(25); %10
+    q2_max = deg2rad(135); %170
     qlims = [q1_min, q1_max, q2_min, q2_max];
 
     Kt = 0.191; % torque constant of motor
@@ -163,6 +163,10 @@ function simulate_twolegs()
     legend('LEG1: Motor 1', 'LEG1: Motor 2', 'LEG2: Motor 1', 'LEG2: Motor 2')
     xlabel('Time (s)'); ylabel('Torque Output by Motor (N*m)');
 
+    figure(9); clf
+    plot(tspan,torque_comm(3,:)./Kt)
+    xlabel('Time (s)'); ylabel('Current(Amp)');
+
 end
 
 function tau = control_law(t, z, p, p_traj)
@@ -275,6 +279,7 @@ function dz = dynamics(t,z,p, p_traj)
     
     % Compute Controls
     tau = control_law(t,z,p,p_traj);
+
     % tau = zeros(6,1);
     
     % Get b = Q - V(q,qd) - G(q)
