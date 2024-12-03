@@ -27,7 +27,7 @@ function simulate_twolegs()
     friction_coeff = 0.8;
     ground_height = 0;
 
-    step_th = deg2rad(50);
+    step_th = deg2rad(30);
     step_w = 0.05; % step depth
     step_h = tan(step_th)*step_w; %find step height. tan(stair_th) = stair_h/stair_w
     % offset_x = -step_w/3;
