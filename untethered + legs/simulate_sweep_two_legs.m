@@ -1,4 +1,4 @@
-function simulate_twolegs()
+function output = simulate_twolegs(slope, angular_velocity)
     %% Define fixed paramters
     m1 =.0393 + .2;         m2 =.0368; 
     m3 = .00783;            m4 = .0155;
@@ -24,15 +24,14 @@ function simulate_twolegs()
     v = 12; %volts
 
     restitution_coeff = 0.;
-    friction_coeff = 10;
+    friction_coeff = 0.8;
     ground_height = 0;
 
-    step_th = deg2rad(40);
+    step_th = slope;
     % step_w = 0.05; % step depth
     % step_h = tan(step_th)*step_w; %find step height. tan(stair_th) = stair_h/stair_w
 
     step_h = 1*0.0254;
-    % step_h = 0.01
     step_w = step_h/tan(step_th);
 
     % offset_x = -step_w/3;
@@ -47,15 +46,15 @@ function simulate_twolegs()
     % %% Simulation Parameters Set 2 -- Operational Space Control
 
     %%%%%%%%%%%%%% CONTROL ELLIPSE PARAMETERS %%%%%%%%%%%%%%
-    p_traj.omega = -10; %rad/sec
+    p_traj.omega = -angular_velocity; %rad/sec
     L = (l_DE+l_OB);
     p_traj.x_off   = -L*0.5;
     p_traj.y_off   = -L*1.3;
-    p_traj.a     = 0.07;
-    p_traj.b     = 0.05;
-    p_traj.phi  = 1.6*step_th;
+    p_traj.a     = 0.08;
+    p_traj.b     = 0.06;
+    p_traj.phi  = slope+ deg2rad(20);
     p_traj.phase = pi;
-    p_traj.r = (p_traj.a+p_traj.b)/2;%for circle testing
+
 
     
     %% Perform Dynamic simulation
@@ -93,98 +92,99 @@ function simulate_twolegs()
         actual_torques(:,i) = motorDynamics(tspan(i),z_out(:,i),p,torque_comm(:,i));
        
     end
-    
-    %% Compute Energy
-    E = potential_energy_twolegs(z_out,p);
-    figure(1); clf
-    plot(tspan,E); xlabel('Time (s)'); ylabel('Energy (J)');
-    
-    %% Compute foot position over time
-    rE1 = zeros(2,length(tspan));
-    vE1 = zeros(2,length(tspan));
-    rE2 = zeros(2,length(tspan));
-    vE2 = zeros(2,length(tspan));
-    for i = 1:length(tspan)
-        rE1(:,i) = position_foot1(z_out(:,i),p);
-        vE1(:,i) = velocity_foot1(z_out(:,i),p);
-        rE2(:,i) = position_foot2(z_out(:,i),p);
-        vE2(:,i) = velocity_foot2(z_out(:,i),p);
-    end
-    
-    figure(2); clf;
-    plot(tspan,rE1(1,:),'r','LineWidth',2)
-    hold on
-    % plot(tspan,p_traj.x_0 + p_traj.r * cos(p_traj.omega*tspan) ,'r--');
-    plot(tspan,rE1(2,:),'b','LineWidth',2)
-    % plot(tspan,p_traj.y_0 + p_traj.r * sin(p_traj.omega*tspan) ,'b--');
-    plot(tspan,rE2(1,:),'m','LineWidth',2)
-    plot(tspan,rE2(2,:),'c','LineWidth',2)
-    hold off %added 
-
-    xlabel('Time (s)'); ylabel('Position (m)'); legend({'x1','x2','y1','y2'});
-    % xlabel('Time (s)'); ylabel('Position (m)'); legend({'x1','x_d','y1','y_d'});
-    figure(3); clf;
-    plot(tspan,vE1(1,:),'r','LineWidth',2)
-    hold on
-    plot(tspan,vE1(2,:),'b','LineWidth',2)
-    hold on
-    plot(tspan,vE2(1,:),'m','LineWidth',2)
-    hold on
-    plot(tspan,vE2(2,:),'c','LineWidth',2)
-    
-    xlabel('Time (s)'); ylabel('Velocity (m)'); legend({'vel_x1','vel_y1','vel_x2','vel_y2'});
-    
-    figure(4)
-    plot(tspan,z_out(1:4,:)*180/pi) %convert gen coord: rad to degrees
-    legend('q1','q2','q3','q4');
-    xlabel('Time (s)');
-    ylabel('Angle (deg)');
-    
-    figure(5)
-    plot(tspan,z_out(5:8,:)*180/pi) %convert gen vel's: rad/s to degrees/s
-    legend('q1dot','q2dot','q3dot','q4dot');
-    xlabel('Time (s)');
-    ylabel('Angular Velocity (deg/sec)');
-    
-    %% Animate Solution
-    figure(6); clf;
-    hold on
-
-    % Ground Q2.3
-    steps = 50;
-    stair_X = linspace(-step_w,step_w*steps,1000);
-    stair_Y = stair_height(stair_X);
-    plot(stair_X,stair_Y,'k');
-    % plot([-2 5], [ground_height ground_height], 'k--');
-    
-    animateSol(tspan, z_out,p, p_traj);
-
-    % Calculate & Plot Energy spent by motors (based on currents and torques commanded)
-    figure(7); clf 
     totalEnergy = computeMotorEnergySpent(tspan, torque_comm, Kt, R_internal);
-    net_Energy = totalEnergy - E;
-    % motorEnergy = tspan;
-    plot(tspan,net_Energy); hold on;
-    plot(tspan,E);
-    plot(tspan,totalEnergy);
-    legend('dissipated','potential','motor');
-    xlabel('Time (s)'); ylabel('Energy (J)');
-
-    figure(8); clf
-    plot(tspan, torque_comm(3,:)); hold on; 
-    % plot(tspan, torque_comm(4,:)); hold on;
-    % plot(tspan, torque_comm(5,:)); hold on;
-    % plot(tspan, torque_comm(6,:)); hold on;
-    plot(tspan, actual_torques(1,:));
-    % plot(tspan, actual_torques(2,:));
-    % plot(tspan, actual_torques(3,:));
-    % plot(tspan, actual_torques(4,:));
-    legend('LEG1: Motor 1','LEG1: Actual 1')
-    xlabel('Time (s)'); ylabel('Torque Output by Motor (N*m)');
-
-    figure(9); clf
-    plot(tspan,torque_comm(3,:)./Kt)
-    xlabel('Time (s)'); ylabel('Current(Amp)');
+    output = [z_out(2,end), totalEnergy(end), slope, angular_velocity];
+    %% Compute Energy
+    % E = potential_energy_twolegs(z_out,p);
+    % figure(1); clf
+    % plot(tspan,E); xlabel('Time (s)'); ylabel('Energy (J)');
+    % 
+    % %% Compute foot position over time
+    % rE1 = zeros(2,length(tspan));
+    % vE1 = zeros(2,length(tspan));
+    % rE2 = zeros(2,length(tspan));
+    % vE2 = zeros(2,length(tspan));
+    % for i = 1:length(tspan)
+    %     rE1(:,i) = position_foot1(z_out(:,i),p);
+    %     vE1(:,i) = velocity_foot1(z_out(:,i),p);
+    %     rE2(:,i) = position_foot2(z_out(:,i),p);
+    %     vE2(:,i) = velocity_foot2(z_out(:,i),p);
+    % end
+    % 
+    % figure(2); clf;
+    % plot(tspan,rE1(1,:),'r','LineWidth',2)
+    % hold on
+    % % plot(tspan,p_traj.x_0 + p_traj.r * cos(p_traj.omega*tspan) ,'r--');
+    % plot(tspan,rE1(2,:),'b','LineWidth',2)
+    % % plot(tspan,p_traj.y_0 + p_traj.r * sin(p_traj.omega*tspan) ,'b--');
+    % plot(tspan,rE2(1,:),'m','LineWidth',2)
+    % plot(tspan,rE2(2,:),'c','LineWidth',2)
+    % hold off %added 
+    % 
+    % xlabel('Time (s)'); ylabel('Position (m)'); legend({'x1','x2','y1','y2'});
+    % % xlabel('Time (s)'); ylabel('Position (m)'); legend({'x1','x_d','y1','y_d'});
+    % figure(3); clf;
+    % plot(tspan,vE1(1,:),'r','LineWidth',2)
+    % hold on
+    % plot(tspan,vE1(2,:),'b','LineWidth',2)
+    % hold on
+    % plot(tspan,vE2(1,:),'m','LineWidth',2)
+    % hold on
+    % plot(tspan,vE2(2,:),'c','LineWidth',2)
+    % 
+    % xlabel('Time (s)'); ylabel('Velocity (m)'); legend({'vel_x1','vel_y1','vel_x2','vel_y2'});
+    % 
+    % figure(4)
+    % plot(tspan,z_out(1:4,:)*180/pi) %convert gen coord: rad to degrees
+    % legend('q1','q2','q3','q4');
+    % xlabel('Time (s)');
+    % ylabel('Angle (deg)');
+    % 
+    % figure(5)
+    % plot(tspan,z_out(5:8,:)*180/pi) %convert gen vel's: rad/s to degrees/s
+    % legend('q1dot','q2dot','q3dot','q4dot');
+    % xlabel('Time (s)');
+    % ylabel('Angular Velocity (deg/sec)');
+    % 
+    % %% Animate Solution
+    % figure(6); clf;
+    % hold on
+    % 
+    % % Ground Q2.3
+    % steps = 50;
+    % stair_X = linspace(-step_w,step_w*steps,1000);
+    % stair_Y = stair_height(stair_X);
+    % plot(stair_X,stair_Y,'k');
+    % % plot([-2 5], [ground_height ground_height], 'k--');
+    % 
+    % animateSol(tspan, z_out,p, p_traj);
+    % 
+    % % Calculate & Plot Energy spent by motors (based on currents and torques commanded)
+    % figure(7); clf 
+    % totalEnergy = computeMotorEnergySpent(tspan, torque_comm, Kt, R_internal);
+    % net_Energy = totalEnergy - E;
+    % % motorEnergy = tspan;
+    % plot(tspan,net_Energy); hold on;
+    % plot(tspan,E);
+    % plot(tspan,totalEnergy);
+    % legend('dissipated','potential','motor');
+    % xlabel('Time (s)'); ylabel('Energy (J)');
+    % 
+    % figure(8); clf
+    % plot(tspan, torque_comm(3,:)); hold on; 
+    % % plot(tspan, torque_comm(4,:)); hold on;
+    % % plot(tspan, torque_comm(5,:)); hold on;
+    % % plot(tspan, torque_comm(6,:)); hold on;
+    % plot(tspan, actual_torques(1,:));
+    % % plot(tspan, actual_torques(2,:));
+    % % plot(tspan, actual_torques(3,:));
+    % % plot(tspan, actual_torques(4,:));
+    % legend('LEG1: Motor 1','LEG1: Actual 1')
+    % xlabel('Time (s)'); ylabel('Torque Output by Motor (N*m)');
+    % 
+    % figure(9); clf
+    % plot(tspan,torque_comm(3,:)./Kt)
+    % xlabel('Time (s)'); ylabel('Current(Amp)');
 
 end
 
